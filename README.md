@@ -73,10 +73,19 @@ open ".build/app/Contextual Mac Translator.app"
 
 ```bash
 scripts/package_installer.sh
-open ".build/installer/Contextual-Mac-Translator-v0.1.2-macos-arm64.pkg"
+open ".build/installer/Contextual-Mac-Translator-v0.1.3-macos-arm64.pkg"
 ```
 
 Installer hiện là package unsigned cho local testing; public distribution vẫn cần Developer ID signing + notarization.
+
+## Tạo DMG kéo-thả vào Applications
+
+```bash
+scripts/package_dmg.sh
+open ".build/dmg/Contextual-Mac-Translator-v0.1.3-macos-arm64.dmg"
+```
+
+DMG hiện là unsigned local-testing artifact; public distribution vẫn cần Developer ID signing + notarization.
 
 Bundle ID hiện tại là placeholder `app.lookerlab.translator`. Trước khi phân phối public phải:
 
