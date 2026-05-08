@@ -1,0 +1,53 @@
+# Build artifacts
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserdata/
+*.xcuserstate
+*.xcodeproj/xcuserdata/
+.bundle/
+*.app/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.cer
+*.mobileprovision
+notarize.keychain-profile
+
+# Coverage
+coverage/
+*.coverage
+*.coverage.*
+htmlcov/
+
+# Local dev
+*.log
+*.sqlite
+*.db
+.translator-token
