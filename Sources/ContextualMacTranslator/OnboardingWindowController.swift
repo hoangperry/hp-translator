@@ -10,7 +10,7 @@ final class OnboardingWindowController {
         let controller = NSHostingController(rootView: view)
         window = NSWindow(contentViewController: controller)
         window.title = "Contextual Mac Translator"
-        window.setContentSize(NSSize(width: 540, height: 370))
+        window.setContentSize(NSSize(width: 620, height: 500))
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
@@ -31,7 +31,7 @@ private struct OnboardingView: View {
     let onContinue: @MainActor () -> Void
 
     private var canContinue: Bool {
-        permissionManager.accessibilityGranted && permissionManager.inputMonitoringGranted
+        permissionManager.accessibilityGranted
     }
 
     private var isInApplicationsFolder: Bool {
@@ -43,7 +43,7 @@ private struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("First Launch Setup")
                     .font(.title2.bold())
-                Text("Grant the macOS permissions required for global hotkeys and keyboard automation.")
+                Text("Grant Accessibility so the app can copy selected text, paste translations, and press Return in the target app.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -55,19 +55,36 @@ private struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 OnboardingPermissionRow(
                     title: "Accessibility",
+                    badge: "Required",
+                    description: "Required for Command-C, Command-V, and Return automation.",
                     granted: permissionManager.accessibilityGranted,
                     openSettings: openAccessibilitySettings,
-                    request: permissionManager.requestAccessibilityIfNeeded
+                    request: permissionManager.requestAccessibilityIfNeeded,
+                    showApp: showAppInFinder
                 )
                 OnboardingPermissionRow(
                     title: "Input Monitoring",
+                    badge: "Optional",
+                    description: "Only needed if macOS later asks for keyboard monitoring. You can continue without it.",
                     granted: permissionManager.inputMonitoringGranted,
                     openSettings: openInputMonitoringSettings,
-                    request: permissionManager.requestInputMonitoringIfNeeded
+                    request: permissionManager.requestInputMonitoringIfNeeded,
+                    showApp: showAppInFinder
                 )
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Label("If the app is not listed, open the privacy pane, press +, then choose /Applications/Contextual Mac Translator.app.", systemImage: "plus.app")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Label("After granting Accessibility, quit and reopen the app if hotkeys do not respond immediately.", systemImage: "arrow.clockwise")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -85,7 +102,7 @@ private struct OnboardingView: View {
             }
         }
         .padding(22)
-        .frame(width: 540, height: 370)
+        .frame(width: 620, height: 500)
         .task {
             while !Task.isCancelled {
                 permissionManager.refresh()
@@ -106,24 +123,52 @@ private struct OnboardingView: View {
         guard let url = URL(string: value) else { return }
         NSWorkspace.shared.open(url)
     }
+
+    private func showAppInFinder() {
+        NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+    }
 }
 
 private struct OnboardingPermissionRow: View {
     let title: String
+    let badge: String
+    let description: String
     let granted: Bool
     let openSettings: () -> Void
     let request: () -> Void
+    let showApp: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: granted ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(granted ? .green : .secondary)
-            Text(title)
-                .font(.headline)
-            Spacer()
-            Button("Open Settings", action: openSettings)
-            Button(granted ? "Granted" : "Request", action: request)
-                .disabled(granted)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: granted ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(granted ? .green : .secondary)
+                Text(title)
+                    .font(.headline)
+                Text(badge)
+                    .font(.caption.bold())
+                    .foregroundStyle(badge == "Required" ? .orange : .secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(.secondary.opacity(0.12), in: Capsule())
+                Spacer()
+                Button("Open Settings", action: openSettings)
+                Button(granted ? "Granted" : "Request", action: request)
+                    .disabled(granted)
+            }
+            Text(description)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 30)
+            HStack(spacing: 8) {
+                Button("Show App") {
+                    showApp()
+                }
+                Text("Use this if macOS does not list the app automatically.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.leading, 30)
         }
     }
 }
