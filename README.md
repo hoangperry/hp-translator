@@ -69,6 +69,15 @@ scripts/package_app.sh release
 open ".build/app/Contextual Mac Translator.app"
 ```
 
+## Tạo installer cài vào `/Applications`
+
+```bash
+scripts/package_installer.sh
+open ".build/installer/Contextual-Mac-Translator-v0.1.2-macos-arm64.pkg"
+```
+
+Installer hiện là package unsigned cho local testing; public distribution vẫn cần Developer ID signing + notarization.
+
 Bundle ID hiện tại là placeholder `app.lookerlab.translator`. Trước khi phân phối public phải:
 
 1. Đăng ký Apple Developer Program và sinh "Developer ID Application" certificate.
