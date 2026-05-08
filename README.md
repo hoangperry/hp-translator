@@ -73,7 +73,7 @@ open ".build/app/Contextual Mac Translator.app"
 
 ```bash
 scripts/package_installer.sh
-open ".build/installer/Contextual-Mac-Translator-v0.1.4-macos-arm64.pkg"
+open ".build/installer/Contextual-Mac-Translator-v0.1.5-macos-arm64.pkg"
 ```
 
 Installer hiện là package unsigned cho local testing; public distribution vẫn cần Developer ID signing + notarization.
@@ -82,7 +82,7 @@ Installer hiện là package unsigned cho local testing; public distribution v�
 
 ```bash
 scripts/package_dmg.sh
-open ".build/dmg/Contextual-Mac-Translator-v0.1.4-macos-arm64.dmg"
+open ".build/dmg/Contextual-Mac-Translator-v0.1.5-macos-arm64.dmg"
 ```
 
 DMG hiện là unsigned local-testing artifact; public distribution vẫn cần Developer ID signing + notarization.

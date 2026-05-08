@@ -30,10 +30,6 @@ private struct OnboardingView: View {
     @ObservedObject var permissionManager: PermissionManager
     let onContinue: @MainActor () -> Void
 
-    private var canContinue: Bool {
-        permissionManager.accessibilityGranted
-    }
-
     private var isInApplicationsFolder: Bool {
         Bundle.main.bundleURL.path.hasPrefix("/Applications/")
     }
@@ -45,6 +41,13 @@ private struct OnboardingView: View {
                     .font(.title2.bold())
                 Text("Grant Accessibility so the app can copy selected text, paste translations, and press Return in the target app.")
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !permissionManager.accessibilityGranted {
+                Label("If Accessibility is already enabled in System Settings but this screen is not green yet, continue anyway and restart the app once. macOS can lag for unsigned local builds.", systemImage: "info.circle")
+                    .font(.callout)
+                    .foregroundStyle(.blue)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -94,11 +97,10 @@ private struct OnboardingView: View {
                     permissionManager.refresh()
                 }
                 Spacer()
-                Button("Continue") {
+                Button(permissionManager.accessibilityGranted ? "Continue" : "Continue Anyway") {
                     onContinue()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!canContinue)
             }
         }
         .padding(22)
