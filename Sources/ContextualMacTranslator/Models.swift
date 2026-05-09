@@ -82,6 +82,99 @@ struct TranslationResult: Codable {
     let translation: String
 }
 
+/// Top-level "where does the translation come from" picker. Mirrors the
+/// Settings UX choice: direct LLM/MT call from the app, a backend the
+/// user runs themselves, or a 1st-party hosted instance.
+enum TranslationSource: String, Codable, CaseIterable, Identifiable {
+    case directAPI
+    case customBackend
+    case firstPartyBackend
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .directAPI:
+            return "Direct API"
+        case .customBackend:
+            return "Custom backend"
+        case .firstPartyBackend:
+            return "1st-party backend"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .directAPI:
+            return "Call your chosen LLM / translate API straight from the app — no backend hop."
+        case .customBackend:
+            return "Point at a translator-server you (or a colleague) hosts."
+        case .firstPartyBackend:
+            return "Use a hosted translator-server (token issued by the service operator)."
+        }
+    }
+}
+
+/// Concrete provider chosen when `translationSource == .directAPI`.
+/// Order matches Python `make_provider()` dispatch and Settings picker.
+enum DirectProviderKind: String, Codable, CaseIterable, Identifiable {
+    case gemini
+    case ollama
+    case googleTranslate
+    case openAICompatible
+    case geminiCLI
+    case codexCLI
+    case mock
+
+    var id: String { rawValue }
+
+    /// Stable key shared with the backend's per-request `provider` field.
+    var providerKey: String {
+        switch self {
+        case .gemini: return "gemini"
+        case .ollama: return "ollama"
+        case .googleTranslate: return "google-translate"
+        case .openAICompatible: return "openai-compatible"
+        case .geminiCLI: return "gemini-cli"
+        case .codexCLI: return "codex-cli"
+        case .mock: return "mock"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .gemini: return "Gemini (Google AI Studio)"
+        case .ollama: return "Ollama (local)"
+        case .googleTranslate: return "Google Translate Basic"
+        case .openAICompatible: return "OpenAI-compatible API"
+        case .geminiCLI: return "Gemini CLI (experimental)"
+        case .codexCLI: return "Codex CLI (experimental)"
+        case .mock: return "Mock (echo)"
+        }
+    }
+
+    /// Hint shown beneath the picker so users know what they need before
+    /// switching to this provider.
+    var requirementHint: String {
+        switch self {
+        case .gemini:
+            return "Requires a Google AI Studio API key (free tier available)."
+        case .ollama:
+            return "Requires a running Ollama instance (default http://127.0.0.1:11434)."
+        case .googleTranslate:
+            return "Requires a Google Cloud API key with Translate Basic enabled."
+        case .openAICompatible:
+            return "Works with any OpenAI-compatible /chat/completions endpoint."
+        case .geminiCLI:
+            return "Spawns the `gemini` CLI per request — slower but reuses the CLI's auth."
+        case .codexCLI:
+            return "Spawns `codex exec` per request — slower; useful when you already have a Codex login."
+        case .mock:
+            return "Returns `[persona] text` without calling any API. Useful for smoke tests."
+        }
+    }
+}
+
 enum TranslationError: LocalizedError {
     case missingEndpoint
     case emptyClipboard
@@ -89,6 +182,8 @@ enum TranslationError: LocalizedError {
     case invalidResponse(Int)
     case backendUnreachable(endpoint: String)
     case insecureEndpoint(endpoint: String)
+    case rateLimited(retryAfter: Int, detail: String?)
+    case serverProblem(status: Int, title: String?, detail: String?)
     case focusChangedBeforePaste
     case focusChangedAfterPaste
 
@@ -115,6 +210,25 @@ enum TranslationError: LocalizedError {
             return "Could not reach backend at \(endpoint). Make sure the server is running and the endpoint URL is correct in Settings."
         case .insecureEndpoint(let endpoint):
             return "Endpoint must use HTTPS unless it is localhost or 127.0.0.1: \(endpoint)"
+        case .rateLimited(let retryAfter, let detail):
+            // v2: backend signalled 429. Surface the wait so the user knows
+            // when to retry instead of staring at a generic error.
+            let suffix: String
+            if let detail, !detail.isEmpty {
+                suffix = " (\(detail))"
+            } else {
+                suffix = ""
+            }
+            return "Rate limit hit — slow down and retry in \(retryAfter)s\(suffix)."
+        case .serverProblem(let status, let title, let detail):
+            // v2: RFC 7807 problem body parsed; prefer detail > title > generic.
+            if let detail, !detail.isEmpty {
+                return "Backend (HTTP \(status)): \(detail)"
+            }
+            if let title, !title.isEmpty {
+                return "Backend (HTTP \(status)): \(title)"
+            }
+            return "Backend request failed with HTTP \(status)."
         case .focusChangedBeforePaste:
             return "Focus changed during translation — paste was suppressed to avoid typing into the wrong app."
         case .focusChangedAfterPaste:

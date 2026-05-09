@@ -29,6 +29,18 @@ final class HUDController {
         ), autoHideAfter: nil)
     }
 
+    /// Update the HUD with a partial translation as chunks stream in.
+    /// Keeps the spinner so the user knows more is still coming. Cancels
+    /// any pending auto-hide so a slow stream doesn't get cut off.
+    func updateLoading(_ partial: String, persona: Persona) {
+        show(HUDState(
+            kind: .loading,
+            title: persona.displayName,
+            message: partial,
+            personaName: nil
+        ), autoHideAfter: nil)
+    }
+
     func showResult(_ message: String, persona: Persona) {
         show(HUDState(
             kind: .result,

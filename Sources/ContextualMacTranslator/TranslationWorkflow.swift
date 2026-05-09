@@ -2,7 +2,12 @@ import Foundation
 
 @MainActor
 final class TranslationWorkflow {
-    private let translator: TranslatorAPI
+    /// Lazy provider resolution — invoked at the start of every workflow
+    /// run so Settings changes apply on the next hotkey press without
+    /// recreating the workflow. Defaults to a closure that calls into the
+    /// shared `TranslationProviderFactory`; tests inject a static
+    /// provider via the convenience initialiser below.
+    private let providerFactory: @MainActor () -> any TranslationProvider
     private let hudController: HUDController
     private let keyboard: KeyboardSimulator
     private let pasteboard: ClipboardService
@@ -11,8 +16,10 @@ final class TranslationWorkflow {
     private let glossaryProvider: @MainActor () -> String
     private let focusGuardEnabledProvider: @MainActor () -> Bool
 
+    /// Production initialiser — wires `providerFactory` to a closure that
+    /// resolves the active provider every call.
     init(
-        translator: TranslatorAPI,
+        providerFactory: @escaping @MainActor () -> any TranslationProvider,
         hudController: HUDController,
         keyboard: KeyboardSimulator,
         pasteboard: ClipboardService,
@@ -21,7 +28,7 @@ final class TranslationWorkflow {
         glossaryProvider: @escaping @MainActor () -> String = { SettingsStore.shared.glossary },
         focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled }
     ) {
-        self.translator = translator
+        self.providerFactory = providerFactory
         self.hudController = hudController
         self.keyboard = keyboard
         self.pasteboard = pasteboard
@@ -31,7 +38,33 @@ final class TranslationWorkflow {
         self.focusGuardEnabledProvider = focusGuardEnabledProvider
     }
 
+    /// Convenience initialiser for callers that hold a fixed provider —
+    /// chiefly the existing test suite and the hotkey wire-up where the
+    /// provider doesn't change between runs.
+    convenience init(
+        translator: any TranslationProvider,
+        hudController: HUDController,
+        keyboard: KeyboardSimulator,
+        pasteboard: ClipboardService,
+        focusGuard: FocusGuard = FocusGuard(),
+        previewPresenter: PreviewPresenter = PreviewHUDController(),
+        glossaryProvider: @escaping @MainActor () -> String = { SettingsStore.shared.glossary },
+        focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled }
+    ) {
+        self.init(
+            providerFactory: { translator },
+            hudController: hudController,
+            keyboard: keyboard,
+            pasteboard: pasteboard,
+            focusGuard: focusGuard,
+            previewPresenter: previewPresenter,
+            glossaryProvider: glossaryProvider,
+            focusGuardEnabledProvider: focusGuardEnabledProvider
+        )
+    }
+
     func translateSelection() async {
+        let translator = providerFactory()
         guard translator.isConfigured else {
             hudController.showError(TranslationError.missingEndpoint.localizedDescription)
             return
@@ -65,6 +98,7 @@ final class TranslationWorkflow {
     }
 
     func translateAndSend(persona: Persona) async {
+        let translator = providerFactory()
         guard translator.isConfigured else {
             hudController.showError(TranslationError.missingEndpoint.localizedDescription)
             return

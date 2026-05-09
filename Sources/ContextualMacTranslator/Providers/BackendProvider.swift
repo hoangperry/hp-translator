@@ -1,0 +1,267 @@
+import Foundation
+
+/// Translation provider that routes requests through an HTTP backend
+/// (the user-managed `translator-server` or a 1st-party hosted instance).
+///
+/// Renamed from the original `TranslatorAPI` and now conforms to
+/// `TranslationProvider`. Behaviour is unchanged from the v2 adoption
+/// added in Phase 2.5: per-request `Idempotency-Key`, RFC 7807 error
+/// parsing, `EndpointPolicy` HTTPS gate.
+@MainActor
+final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
+    static var providerKey: String { "backend" }
+    static var displayName: String { "Translator backend" }
+
+    private let settings: SettingsStore
+    private let session: URLSession
+    private let idempotencyKeyProvider: @MainActor () -> String
+    private let endpointOverride: (@MainActor () -> String)?
+    private let tokenOverride: (@MainActor () -> String)?
+
+    /// Default initialiser routes against `settings.endpoint` + `settings.apiKey`
+    /// — i.e. the "Custom backend" source.
+    ///
+    /// `endpointOverride` and `tokenOverride` let the 1st-party source feed
+    /// in a separate slot so users can switch between custom and 1st-party
+    /// modes without re-entering credentials.
+    init(
+        settings: SettingsStore,
+        session: URLSession = .shared,
+        idempotencyKeyProvider: @escaping @MainActor () -> String = { UUID().uuidString },
+        endpointOverride: (@MainActor () -> String)? = nil,
+        tokenOverride: (@MainActor () -> String)? = nil
+    ) {
+        self.settings = settings
+        self.session = session
+        self.idempotencyKeyProvider = idempotencyKeyProvider
+        self.endpointOverride = endpointOverride
+        self.tokenOverride = tokenOverride
+    }
+
+    private var resolvedEndpoint: String {
+        if let endpointOverride {
+            return endpointOverride()
+        }
+        return settings.endpoint
+    }
+
+    private var resolvedToken: String {
+        if let tokenOverride {
+            return tokenOverride()
+        }
+        return settings.apiKey
+    }
+
+    var isConfigured: Bool {
+        !resolvedEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func translate(_ job: TranslationJob) async throws -> TranslationResult {
+        let endpoint = resolvedEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !endpoint.isEmpty, let url = URL(string: endpoint) else {
+            throw TranslationError.missingEndpoint
+        }
+        guard EndpointPolicy.allows(url) else {
+            throw TranslationError.insecureEndpoint(endpoint: endpoint)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // v2: Idempotency-Key per hotkey-press protects against double-paste
+        // when the network glitches mid-flight. Server cache TTL ~5min.
+        request.setValue(idempotencyKeyProvider(), forHTTPHeaderField: "Idempotency-Key")
+        let token = resolvedToken
+        if !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let body = BackendRequestBody(
+            text: job.text,
+            direction: job.direction.rawValue,
+            sourceLanguage: job.sourceLanguage,
+            targetLanguage: job.targetLanguage,
+            persona: job.persona.rawValue,
+            styleInstruction: job.persona.styleInstruction,
+            glossary: job.glossary
+        )
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, httpResponse) = try await HTTPClient.send(request, endpoint: endpoint, session: session)
+        if !(200...299).contains(httpResponse.statusCode) {
+            throw HTTPClient.translationError(for: httpResponse, body: data)
+        }
+
+        if let decoded = try? JSONDecoder().decode(TranslationResult.self, from: data) {
+            return decoded
+        }
+        if let decoded = try? JSONDecoder().decode(FlexibleTranslationResponse.self, from: data),
+           let translation = decoded.translationText {
+            return TranslationResult(translation: translation)
+        }
+        throw TranslationError.missingTranslation
+    }
+
+    // MARK: - Streaming
+
+    func translateStreaming(_ job: TranslationJob) -> AsyncThrowingStream<StreamingTranslationUpdate, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task { @MainActor in
+                do {
+                    try await self.streamSSE(for: job, into: continuation)
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// Build the SSE request, walk the byte stream line-by-line, and
+    /// forward parsed updates to `continuation`. Throws if the request
+    /// cannot start; mid-stream errors propagate via the continuation.
+    private func streamSSE(
+        for job: TranslationJob,
+        into continuation: AsyncThrowingStream<StreamingTranslationUpdate, Error>.Continuation
+    ) async throws {
+        let endpoint = resolvedEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !endpoint.isEmpty, let baseURL = URL(string: endpoint) else {
+            throw TranslationError.missingEndpoint
+        }
+        guard EndpointPolicy.allows(baseURL) else {
+            throw TranslationError.insecureEndpoint(endpoint: endpoint)
+        }
+
+        // Streaming endpoint sits next to /translate; rewrite the last
+        // path component so users keep configuring a single base URL.
+        let streamURL = Self.streamingURL(for: baseURL)
+
+        var request = URLRequest(url: streamURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.setValue(idempotencyKeyProvider(), forHTTPHeaderField: "Idempotency-Key")
+        let token = resolvedToken
+        if !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let body = BackendRequestBody(
+            text: job.text,
+            direction: job.direction.rawValue,
+            sourceLanguage: job.sourceLanguage,
+            targetLanguage: job.targetLanguage,
+            persona: job.persona.rawValue,
+            styleInstruction: job.persona.styleInstruction,
+            glossary: job.glossary
+        )
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (bytes, response): (URLSession.AsyncBytes, URLResponse)
+        do {
+            (bytes, response) = try await session.bytes(for: request)
+        } catch let urlError as URLError {
+            switch urlError.code {
+            case .cannotConnectToHost, .cannotFindHost, .networkConnectionLost,
+                 .notConnectedToInternet, .timedOut, .dnsLookupFailed,
+                 .secureConnectionFailed, .resourceUnavailable:
+                throw TranslationError.backendUnreachable(endpoint: streamURL.absoluteString)
+            default:
+                throw urlError
+            }
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw TranslationError.missingTranslation
+        }
+        if !(200...299).contains(http.statusCode) {
+            // Read the (small) error body so RFC 7807 details are surfaced.
+            var bodyData = Data()
+            for try await byte in bytes {
+                bodyData.append(byte)
+                if bodyData.count > 8 * 1024 { break }
+            }
+            throw HTTPClient.translationError(for: http, body: bodyData)
+        }
+
+        for try await line in bytes.lines {
+            // SSE frames are blank-line separated; the `URLSession.bytes.lines`
+            // sequence already splits on `\n`, so each non-blank line
+            // starting with `data:` carries one frame's payload.
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("data:") else { continue }
+            let jsonText = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
+            guard let data = jsonText.data(using: .utf8),
+                  let frame = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else { continue }
+
+            if let chunk = frame["chunk"] as? String {
+                continuation.yield(.chunk(chunk))
+            } else if let done = frame["done"] as? Bool, done {
+                let translation = frame["translation"] as? String ?? ""
+                let providerName = frame["provider"] as? String ?? "backend"
+                continuation.yield(.done(translation: translation, provider: providerName))
+                return
+            } else if let errorBody = frame["error"] as? [String: Any] {
+                let status = errorBody["status"] as? Int ?? 500
+                let title = errorBody["title"] as? String
+                let detail = (errorBody["detail"] as? String) ?? (errorBody["error"] as? String)
+                throw TranslationError.serverProblem(status: status, title: title, detail: detail)
+            }
+        }
+    }
+
+    /// Compose the `/translate/stream` URL from the configured `/translate`
+    /// endpoint. Falls back to appending `/translate/stream` if the user
+    /// configured a non-standard path.
+    static func streamingURL(for endpoint: URL) -> URL {
+        var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) ?? URLComponents()
+        let path = components.path
+        if path.hasSuffix("/translate") {
+            components.path = path + "/stream"
+        } else if path.isEmpty || path == "/" {
+            components.path = "/translate/stream"
+        } else if path.hasSuffix("/") {
+            components.path = path + "translate/stream"
+        } else {
+            components.path = path + "/stream"
+        }
+        return components.url ?? endpoint
+    }
+}
+
+private struct BackendRequestBody: Encodable {
+    let text: String
+    let direction: String
+    let sourceLanguage: String
+    let targetLanguage: String
+    let persona: String
+    let styleInstruction: String
+    let glossary: String
+}
+
+private struct FlexibleTranslationResponse: Decodable {
+    struct Choice: Decodable {
+        struct Message: Decodable {
+            let content: String?
+        }
+
+        let text: String?
+        let message: Message?
+    }
+
+    let translation: String?
+    let translatedText: String?
+    let outputText: String?
+    let output_text: String?
+    let choices: [Choice]?
+
+    var translationText: String? {
+        translation
+            ?? translatedText
+            ?? outputText
+            ?? output_text
+            ?? choices?.compactMap { $0.message?.content ?? $0.text }.first
+    }
+}

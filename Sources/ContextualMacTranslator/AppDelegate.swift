@@ -10,9 +10,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var permissionManager = PermissionManager()
     private lazy var hudController = HUDController()
     private lazy var previewHUDController = PreviewHUDController()
-    private lazy var translator = TranslatorAPI(settings: .shared)
+    private lazy var providerFactory = TranslationProviderFactory(settings: .shared)
     private lazy var workflow = TranslationWorkflow(
-        translator: translator,
+        providerFactory: { [providerFactory] in providerFactory.make() },
         hudController: hudController,
         keyboard: KeyboardSimulator(),
         pasteboard: ClipboardService(),
