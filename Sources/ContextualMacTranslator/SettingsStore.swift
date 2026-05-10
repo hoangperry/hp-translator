@@ -144,6 +144,69 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    // MARK: Multi-language (v0.3 / Phase 8)
+
+    /// User's primary readable language (BCP47). Inbound translations
+    /// always target this; outbound translations use this as the source.
+    @Published var primaryLanguage: String {
+        didSet {
+            guard primaryLanguage != oldValue else { return }
+            defaults.set(primaryLanguage, forKey: Keys.primaryLanguage)
+        }
+    }
+
+    /// Hotkey for inbound translation (selection → primary language).
+    @Published var inboundBinding: InboundBinding {
+        didSet {
+            guard inboundBinding != oldValue else { return }
+            persist(inboundBinding, forKey: Keys.inboundBinding)
+        }
+    }
+
+    /// Outbound translation bindings. Each entry = (target language +
+    /// register + hotkey + optional custom style instruction). Defaults
+    /// reproduce v0.2 keigo + casual hotkeys for back-compat.
+    @Published var outboundBindings: [OutboundBinding] {
+        didSet {
+            guard outboundBindings != oldValue else { return }
+            persist(outboundBindings, forKey: Keys.outboundBindings)
+        }
+    }
+
+    // MARK: Direct providers — DeepL (v0.3)
+
+    @Published var deeplAPIKey: String {
+        didSet {
+            guard deeplAPIKey != oldValue else { return }
+            writeKeychain(deeplAPIKey, account: Accounts.deeplAPIKey)
+        }
+    }
+
+    /// `true` = use Free endpoint (api-free.deepl.com), `false` = Pro
+    /// (api.deepl.com). Free is the common case so default true.
+    @Published var deeplUseFree: Bool {
+        didSet {
+            guard deeplUseFree != oldValue else { return }
+            defaults.set(deeplUseFree, forKey: Keys.deeplUseFree)
+        }
+    }
+
+    // MARK: Direct providers — LibreTranslate (v0.3)
+
+    @Published var libreTranslateBaseURL: String {
+        didSet {
+            guard libreTranslateBaseURL != oldValue else { return }
+            defaults.set(libreTranslateBaseURL, forKey: Keys.libreTranslateBaseURL)
+        }
+    }
+
+    @Published var libreTranslateAPIKey: String {
+        didSet {
+            guard libreTranslateAPIKey != oldValue else { return }
+            writeKeychain(libreTranslateAPIKey, account: Accounts.libreTranslateAPIKey)
+        }
+    }
+
     // MARK: Internals
 
     private let defaults: UserDefaults
@@ -171,6 +234,13 @@ final class SettingsStore: ObservableObject {
         static let glossary = "translator.glossary"
         static let focusGuardEnabled = "translator.focusGuardEnabled"
         static let firstRunCompleted = "translator.firstRunCompleted"
+        // v0.3 multi-lang
+        static let primaryLanguage = "translator.primaryLanguage"
+        static let inboundBinding = "translator.inboundBinding"
+        static let outboundBindings = "translator.outboundBindings"
+        // v0.3 new providers
+        static let deeplUseFree = "translator.deepl.useFree"
+        static let libreTranslateBaseURL = "translator.libretranslate.baseURL"
     }
 
     private enum Accounts {
@@ -182,6 +252,8 @@ final class SettingsStore: ObservableObject {
         static let geminiAPIKey = "gemini-api-key"
         static let googleTranslateAPIKey = "google-translate-api-key"
         static let openAICompatAPIKey = "openai-compatible-api-key"
+        static let deeplAPIKey = "deepl-api-key"
+        static let libreTranslateAPIKey = "libretranslate-api-key"
         // Shared
         static let glossary = "default-glossary"
     }
@@ -200,6 +272,7 @@ final class SettingsStore: ObservableObject {
         static let ollamaModel = "qwen2.5:7b-instruct"
         static let openAICompatBaseURL = "https://api.openai.com/v1"
         static let openAICompatModel = "gpt-4.1-mini"
+        static let libreTranslateBaseURL = "https://libretranslate.com"
     }
 
     init(
@@ -247,6 +320,34 @@ final class SettingsStore: ObservableObject {
         glossary = (try? keychain.read(account: Accounts.glossary)) ?? ""
         focusGuardEnabled = defaults.object(forKey: Keys.focusGuardEnabled) as? Bool ?? true
         firstRunCompleted = defaults.bool(forKey: Keys.firstRunCompleted)
+
+        // v0.3 multi-lang — back-compat defaults match v0.2 hardcoded behaviour
+        primaryLanguage = defaults.string(forKey: Keys.primaryLanguage) ?? "vi"
+        inboundBinding = Self.loadCodable(InboundBinding.self, defaults: defaults, key: Keys.inboundBinding)
+            ?? .default
+        outboundBindings = Self.loadCodable([OutboundBinding].self, defaults: defaults, key: Keys.outboundBindings)
+            ?? [.defaultJapaneseFormal, .defaultJapaneseCasual]
+
+        // v0.3 new providers
+        deeplAPIKey = (try? keychain.read(account: Accounts.deeplAPIKey)) ?? ""
+        deeplUseFree = defaults.object(forKey: Keys.deeplUseFree) as? Bool ?? true
+        libreTranslateBaseURL = defaults.string(forKey: Keys.libreTranslateBaseURL) ?? ProviderDefaults.libreTranslateBaseURL
+        libreTranslateAPIKey = (try? keychain.read(account: Accounts.libreTranslateAPIKey)) ?? ""
+    }
+
+    private static func loadCodable<T: Decodable>(
+        _ type: T.Type,
+        defaults: UserDefaults,
+        key: String
+    ) -> T? {
+        guard let data = defaults.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
+    }
+
+    private func persist<T: Encodable>(_ value: T, forKey key: String) {
+        if let data = try? JSONEncoder().encode(value) {
+            defaults.set(data, forKey: key)
+        }
     }
 
     private static func migrateSecret(_ migration: CredentialMigration, key: String, account: String) {

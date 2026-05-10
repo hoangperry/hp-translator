@@ -15,32 +15,24 @@ enum PromptBuilder {
     Return only the translated text. Do not add explanations, quotes, markdown, or labels.
     """
 
-    /// Per-persona style rule. Mirrors Python `PERSONA_RULES` so the
-    /// fallback when `styleInstruction` is empty matches the backend.
-    static func styleRule(for persona: Persona) -> String {
-        switch persona {
-        case .vietnameseReader:
-            return "Translate into natural Vietnamese. Preserve the original nuance and make technical chat easy to understand."
-        case .japaneseBusiness:
-            return "Translate into business Japanese using polite keigo. Keep it concise and suitable for workplace chat."
-        case .japaneseCasual:
-            return "Translate into casual Japanese suitable for friendly chat. Keep it natural and not overly formal."
-        }
+    /// Style instruction derived from the (target language, register) pair
+    /// on `style`. Replaces the v0.2 hardcoded persona switch — works for
+    /// arbitrary BCP47 target languages.
+    static func styleRule(for style: TranslationStyle) -> String {
+        style.styleInstruction
     }
 
     /// User prompt body. The LLM receives `systemPrompt` separately (or
     /// concatenated for providers that don't support a system role).
     static func userPrompt(for job: TranslationJob) -> String {
         let glossary = job.glossary.isEmpty ? "(empty)" : job.glossary
-        let style = job.persona.styleInstruction.isEmpty
-            ? styleRule(for: job.persona)
-            : job.persona.styleInstruction
+        let style = job.style.styleInstruction
         return """
         Task: translate chat text.
         Direction: \(job.direction.rawValue)
         Source language: \(job.sourceLanguage)
-        Target language: \(job.targetLanguage)
-        Persona: \(job.persona.rawValue)
+        Target language: \(job.targetLanguage) (\(LanguageCatalog.englishName(for: job.targetLanguage)))
+        Register: \(job.register.rawValue)
         Style rule: \(style)
         Glossary:
         \(glossary)
@@ -53,13 +45,11 @@ enum PromptBuilder {
     }
 
     /// Sampling temperature. Casual chat tolerates a touch more variation;
-    /// keigo and Vietnamese stay near-deterministic.
-    static func temperature(for persona: Persona) -> Double {
-        switch persona {
-        case .japaneseCasual:
-            return 0.35
-        case .vietnameseReader, .japaneseBusiness:
-            return 0.2
+    /// formal + neutral stay near-deterministic.
+    static func temperature(for style: TranslationStyle) -> Double {
+        switch style.register {
+        case .casual: return 0.35
+        case .formal, .neutral: return 0.2
         }
     }
 

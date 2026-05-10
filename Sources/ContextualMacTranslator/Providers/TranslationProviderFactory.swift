@@ -75,6 +75,24 @@ final class TranslationProviderFactory {
                 ),
                 session: session
             )
+        case .deepl:
+            return DeepLDirectProvider(
+                config: DeepLDirectProvider.Config(
+                    apiKey: settings.deeplAPIKey,
+                    useFreeEndpoint: settings.deeplUseFree,
+                    timeout: 20
+                ),
+                session: session
+            )
+        case .libreTranslate:
+            return LibreTranslateDirectProvider(
+                config: LibreTranslateDirectProvider.Config(
+                    baseURL: nonEmpty(settings.libreTranslateBaseURL) ?? SettingsStore.ProviderDefaults.libreTranslateBaseURL,
+                    apiKey: settings.libreTranslateAPIKey,
+                    timeout: 20
+                ),
+                session: session
+            )
         case .geminiCLI:
             return GeminiCLIProvider(config: GeminiCLIProvider.Config(
                 command: "gemini",

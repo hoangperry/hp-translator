@@ -53,7 +53,7 @@ final class OpenAICompatibleDirectProvider: TranslationProvider {
 
         let body: [String: Any] = [
             "model": config.model,
-            "temperature": PromptBuilder.temperature(for: job.persona),
+            "temperature": PromptBuilder.temperature(for: job.style),
             "messages": [
                 ["role": "system", "content": PromptBuilder.systemPrompt],
                 ["role": "user", "content": PromptBuilder.userPrompt(for: job)],

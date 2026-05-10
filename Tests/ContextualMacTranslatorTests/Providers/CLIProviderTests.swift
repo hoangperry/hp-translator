@@ -41,13 +41,7 @@ private struct StubProcessRunner: ProcessRunner, @unchecked Sendable {
 }
 
 private func makeJob() -> TranslationJob {
-    TranslationJob(
-        text: "xin chao",
-        direction: .inbound,
-        sourceLanguage: "auto",
-        targetLanguage: "vi",
-        persona: .vietnameseReader,
-        glossary: ""
+    TranslationJob(text: "xin chao", style: .vietnameseReader, sourceLanguage: "auto", glossary: ""
     )
 }
 
@@ -111,7 +105,8 @@ struct GeminiCLIProviderTests {
         #expect(capture.arguments.contains("-m"))
         #expect(capture.arguments.contains("gemini-2.5-flash"))
         if let promptIndex = capture.arguments.firstIndex(of: "-p"), promptIndex + 1 < capture.arguments.count {
-            #expect(capture.arguments[promptIndex + 1].contains("Persona: vietnameseReader"))
+            #expect(capture.arguments[promptIndex + 1].contains("Register: neutral"))
+            #expect(capture.arguments[promptIndex + 1].contains("Target language: vi"))
         } else {
             Issue.record("`-p <prompt>` not found in args: \(capture.arguments)")
         }
@@ -227,6 +222,32 @@ struct CodexCLIProviderTests {
                 Issue.record("Wrong case: \(error)")
             }
         }
+    }
+}
+
+// MARK: - PATH augmentation
+
+@Suite("SystemProcessRunner PATH")
+struct SystemProcessRunnerPathTests {
+    @Test("Includes Homebrew + user-local bin ahead of inherited PATH")
+    func extendsPath() {
+        let env = SystemProcessRunner.augmentedEnvironment()
+        let path = env["PATH"] ?? ""
+        let parts = path.split(separator: ":").map(String.init)
+
+        // First entry must be Homebrew so /opt/homebrew/bin/codex wins
+        // over any stale system shim earlier in the inherited PATH.
+        #expect(parts.first == "/opt/homebrew/bin")
+        #expect(parts.contains("/usr/local/bin"))
+        // Inherited /usr/bin still present so system tools work.
+        #expect(parts.contains("/usr/bin"))
+    }
+
+    @Test("PATH entries are de-duplicated")
+    func deduplicates() {
+        let env = SystemProcessRunner.augmentedEnvironment()
+        let parts = (env["PATH"] ?? "").split(separator: ":").map(String.init)
+        #expect(parts.count == Set(parts).count)
     }
 }
 

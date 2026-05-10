@@ -57,7 +57,7 @@ final class GeminiDirectProvider: TranslationProvider {
                 ]
             ],
             "generationConfig": [
-                "temperature": PromptBuilder.temperature(for: job.persona),
+                "temperature": PromptBuilder.temperature(for: job.style),
                 "maxOutputTokens": config.maxOutputTokens,
             ],
         ]

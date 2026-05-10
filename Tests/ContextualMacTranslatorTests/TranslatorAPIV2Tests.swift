@@ -62,13 +62,7 @@ private func makeAPI(
 }
 
 private func makeJob() -> TranslationJob {
-    TranslationJob(
-        text: "xin chao",
-        direction: .inbound,
-        sourceLanguage: "vi",
-        targetLanguage: "vi",
-        persona: .vietnameseReader,
-        glossary: ""
+    TranslationJob(text: "xin chao", style: .vietnameseReader, sourceLanguage: "vi", glossary: ""
     )
 }
 

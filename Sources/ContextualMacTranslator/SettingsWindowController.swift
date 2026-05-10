@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 
 @MainActor
@@ -29,6 +30,8 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
+                languagesSection
+                Divider()
                 sourcePicker
                 Divider()
                 sourceForm
@@ -42,7 +45,88 @@ struct SettingsView: View {
             .padding(22)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(minWidth: 580, minHeight: 600)
+        .frame(minWidth: 620, minHeight: 700)
+    }
+
+    // MARK: - Languages (v0.3)
+
+    private var languagesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Languages")
+                .font(.headline)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("My language (incoming translations target this)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker("My language", selection: $settings.primaryLanguage) {
+                    ForEach(LanguageCatalog.supported) { lang in
+                        Text("\(lang.englishName) — \(lang.nativeName)").tag(lang.code)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Inbound hotkey (selection → my language)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(settings.inboundBinding.hotkey.displayLabel)
+                    .font(.system(.body, design: .monospaced))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Outbound translations")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    Button("Add target") { addOutboundBinding() }
+                }
+                ForEach($settings.outboundBindings) { $binding in
+                    OutboundBindingRow(binding: $binding) { removeBinding(binding) }
+                }
+                if settings.outboundBindings.isEmpty {
+                    Text("No outbound targets configured. Add one above to translate from your primary language to another.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func addOutboundBinding() {
+        // Pick the first language not yet bound, fallback to English.
+        let usedCodes = Set(settings.outboundBindings.map { $0.languageCode })
+        let nextLang = LanguageCatalog.supported.first(where: { !usedCodes.contains($0.code) })?.code ?? "en"
+        let nextRegister: Register = .formal
+        // Pick a free hotkey: cycle ⌘1, ⌘2, ⌘3, ... when defaults are taken.
+        let nextHotkey: HotkeyConfig = {
+            let defaults: [HotkeyConfig] = [.defaultOutboundFormal, .defaultOutboundCasual]
+            let used = Set(settings.outboundBindings.map { $0.hotkey })
+            for cand in defaults where !used.contains(cand) {
+                return cand
+            }
+            // Fallback: ⌘ + digit
+            let digits: [Int] = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
+                                 kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9, kVK_ANSI_0]
+            for d in digits {
+                let cand = HotkeyConfig(keyCode: UInt32(d), modifiers: UInt32(cmdKey))
+                if !used.contains(cand) { return cand }
+            }
+            return .defaultOutboundFormal
+        }()
+        settings.outboundBindings.append(OutboundBinding(
+            languageCode: nextLang,
+            register: nextRegister,
+            hotkey: nextHotkey
+        ))
+    }
+
+    private func removeBinding(_ binding: OutboundBinding) {
+        settings.outboundBindings.removeAll { $0.id == binding.id }
     }
 
     // MARK: - Sections
@@ -122,12 +206,23 @@ struct SettingsView: View {
                 LabeledSecureField(label: "API key", text: $settings.openAICompatAPIKey, placeholder: "Bearer token")
                 LabeledTextField(label: "Model", text: $settings.openAICompatModel, placeholder: SettingsStore.ProviderDefaults.openAICompatModel)
             }
+        case .deepl:
+            VStack(alignment: .leading, spacing: 8) {
+                LabeledSecureField(label: "API key", text: $settings.deeplAPIKey, placeholder: "DeepL Free or Pro key")
+                Toggle("Use Free endpoint (api-free.deepl.com)", isOn: $settings.deeplUseFree)
+                    .help("Untick if your key is for the Pro plan (api.deepl.com).")
+            }
+        case .libreTranslate:
+            VStack(alignment: .leading, spacing: 8) {
+                LabeledTextField(label: "Base URL", text: $settings.libreTranslateBaseURL, placeholder: SettingsStore.ProviderDefaults.libreTranslateBaseURL)
+                LabeledSecureField(label: "API key (optional)", text: $settings.libreTranslateAPIKey, placeholder: "Leave empty if self-hosted without auth")
+            }
         case .geminiCLI, .codexCLI:
-            Label("CLI providers will be available after Phase 3c. Pick another provider for now.", systemImage: "info.circle")
-                .font(.callout)
-                .foregroundStyle(.orange)
+            Text("Spawns the CLI per request. Make sure the binary is installed and authenticated (\\`gemini login\\` or \\`codex login\\`).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         case .mock:
-            Text("Mock returns `[persona] text` echoes — useful when testing hotkeys without a live API.")
+            Text("Mock returns `[language] text` echoes — useful when testing hotkeys without a live API.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -271,5 +366,54 @@ private struct PermissionRow: View {
             Button(granted ? "Granted" : "Request", action: action)
                 .disabled(granted)
         }
+    }
+}
+
+/// Editable row for one outbound binding (target language + register +
+/// hotkey display). Hotkey recorder UI is deferred to a follow-up; for
+/// now the hotkey is shown but immutable from here — users can edit by
+/// removing + re-adding.
+private struct OutboundBindingRow: View {
+    @Binding var binding: OutboundBinding
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Picker("Language", selection: $binding.languageCode) {
+                    ForEach(LanguageCatalog.supported) { lang in
+                        Text(lang.englishName).tag(lang.code)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(maxWidth: 200)
+
+                Picker("Register", selection: $binding.register) {
+                    ForEach(Register.allCases) { reg in
+                        Text(reg.displayName).tag(reg)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(maxWidth: 130)
+
+                Spacer()
+
+                Text(binding.hotkey.displayLabel)
+                    .font(.system(.body, design: .monospaced))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+
+                Button(role: .destructive) { onDelete() } label: {
+                    Image(systemName: "minus.circle")
+                }
+                .buttonStyle(.borderless)
+                .help("Remove this outbound target")
+            }
+        }
+        .padding(8)
+        .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
     }
 }

@@ -37,6 +37,12 @@ struct SystemProcessRunner: ProcessRunner {
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
             process.arguments = [executable] + arguments
 
+            // Apps launched from /Applications inherit a minimal PATH
+            // (/usr/bin:/bin:/usr/sbin:/sbin) that excludes Homebrew. Without
+            // this fix `gemini`/`codex` installed via brew at
+            // /opt/homebrew/bin won't be found by `/usr/bin/env`.
+            process.environment = Self.augmentedEnvironment()
+
             let stdoutPipe = Pipe()
             let stderrPipe = Pipe()
             process.standardOutput = stdoutPipe
@@ -83,6 +89,39 @@ struct SystemProcessRunner: ProcessRunner {
                 }
             }
         }
+    }
+
+    /// Build an environment dict with PATH widened to cover the locations
+    /// users actually install CLI tools at. Order matches the typical
+    /// shell PATH on macOS:
+    ///
+    /// - `/opt/homebrew/bin` — Apple Silicon Homebrew
+    /// - `/usr/local/bin` — Intel Homebrew + manual installs
+    /// - `~/.local/bin` — pipx, cargo, etc.
+    /// - inherited PATH (whatever the GUI launch gave us)
+    /// - fallback `/usr/bin:/bin:/usr/sbin:/sbin`
+    static func augmentedEnvironment() -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        let inherited = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        let home = env["HOME"] ?? NSHomeDirectory()
+        let extras = [
+            "/opt/homebrew/bin",
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",
+            "/usr/local/sbin",
+            "\(home)/.local/bin",
+            "\(home)/.cargo/bin",
+        ]
+        let inheritedComponents = inherited.split(separator: ":").map(String.init)
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for path in extras + inheritedComponents {
+            guard !path.isEmpty, !seen.contains(path) else { continue }
+            seen.insert(path)
+            ordered.append(path)
+        }
+        env["PATH"] = ordered.joined(separator: ":")
+        return env
     }
 
     private static func readPipe(_ pipe: Pipe) -> String {

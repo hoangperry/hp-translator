@@ -53,7 +53,7 @@ final class OllamaDirectProvider: TranslationProvider {
             "prompt": PromptBuilder.userPrompt(for: job),
             "stream": false,
             "options": [
-                "temperature": PromptBuilder.temperature(for: job.persona)
+                "temperature": PromptBuilder.temperature(for: job.style)
             ],
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

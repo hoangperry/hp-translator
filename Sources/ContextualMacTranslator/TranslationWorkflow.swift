@@ -15,6 +15,9 @@ final class TranslationWorkflow {
     private let previewPresenter: PreviewPresenter
     private let glossaryProvider: @MainActor () -> String
     private let focusGuardEnabledProvider: @MainActor () -> Bool
+    /// User's primary language (where inbound translations go, source of
+    /// outbound translations). BCP47 code, e.g. "vi", "en".
+    private let primaryLanguageProvider: @MainActor () -> String
 
     /// Production initialiser — wires `providerFactory` to a closure that
     /// resolves the active provider every call.
@@ -26,7 +29,8 @@ final class TranslationWorkflow {
         focusGuard: FocusGuard = FocusGuard(),
         previewPresenter: PreviewPresenter = PreviewHUDController(),
         glossaryProvider: @escaping @MainActor () -> String = { SettingsStore.shared.glossary },
-        focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled }
+        focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled },
+        primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage }
     ) {
         self.providerFactory = providerFactory
         self.hudController = hudController
@@ -36,6 +40,7 @@ final class TranslationWorkflow {
         self.previewPresenter = previewPresenter
         self.glossaryProvider = glossaryProvider
         self.focusGuardEnabledProvider = focusGuardEnabledProvider
+        self.primaryLanguageProvider = primaryLanguageProvider
     }
 
     /// Convenience initialiser for callers that hold a fixed provider —
@@ -49,7 +54,8 @@ final class TranslationWorkflow {
         focusGuard: FocusGuard = FocusGuard(),
         previewPresenter: PreviewPresenter = PreviewHUDController(),
         glossaryProvider: @escaping @MainActor () -> String = { SettingsStore.shared.glossary },
-        focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled }
+        focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled },
+        primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage }
     ) {
         self.init(
             providerFactory: { translator },
@@ -59,7 +65,8 @@ final class TranslationWorkflow {
             focusGuard: focusGuard,
             previewPresenter: previewPresenter,
             glossaryProvider: glossaryProvider,
-            focusGuardEnabledProvider: focusGuardEnabledProvider
+            focusGuardEnabledProvider: focusGuardEnabledProvider,
+            primaryLanguageProvider: primaryLanguageProvider
         )
     }
 
@@ -70,7 +77,13 @@ final class TranslationWorkflow {
             return
         }
 
-        hudController.showLoading("Translating selection...", persona: .vietnameseReader)
+        let inboundStyle = TranslationStyle(
+            direction: .inbound,
+            targetLanguage: primaryLanguageProvider(),
+            register: .neutral
+        )
+
+        hudController.showLoading("Translating selection...", persona: inboundStyle)
         let snapshot = pasteboard.capture()
         let previousChangeCount = pasteboard.changeCount
 
@@ -82,18 +95,21 @@ final class TranslationWorkflow {
         }
         pasteboard.restore(snapshot)
 
-        do {
-            let result = try await translator.translate(TranslationJob(
-                text: selectedText,
-                direction: .inbound,
-                sourceLanguage: "auto",
-                targetLanguage: Persona.vietnameseReader.targetLanguage,
-                persona: .vietnameseReader,
-                glossary: glossaryProvider()
-            ))
-            hudController.showResult(result.translation, persona: .vietnameseReader)
-        } catch {
-            hudController.showError(error.localizedDescription)
+        let job = TranslationJob(
+            text: selectedText,
+            style: inboundStyle,
+            sourceLanguage: "auto",
+            glossary: glossaryProvider()
+        )
+
+        // Inbound is the only flow where progressive HUD adds value
+        // (outbound has to wait for the full text before pasting). Use
+        // streaming when the active provider implements it; fall back to
+        // one-shot translate otherwise.
+        if let streamer = translator as? any StreamingTranslationProvider {
+            await runStreamingInbound(streamer: streamer, job: job)
+        } else {
+            await runOneShotInbound(translator: translator, job: job)
         }
     }
 
@@ -127,10 +143,8 @@ final class TranslationWorkflow {
         do {
             let result = try await translator.translate(TranslationJob(
                 text: sourceText,
-                direction: .outbound,
-                sourceLanguage: "vi",
-                targetLanguage: persona.targetLanguage,
-                persona: persona,
+                style: persona,
+                sourceLanguage: primaryLanguageProvider(),
                 glossary: glossaryProvider()
             ))
 
@@ -138,6 +152,9 @@ final class TranslationWorkflow {
             // casual defaults to auto-send. Define spec §A Q9 / PRD US-5.
             let textToSend: String
             if persona.previewByDefault {
+                // Hide the loading HUD before opening preview so the user
+                // doesn't see two stacked panels (loading + preview).
+                hudController.dismiss()
                 let decision = await previewPresenter.presentPreview(
                     original: sourceText,
                     translated: result.translation,
@@ -205,6 +222,45 @@ final class TranslationWorkflow {
             return true
         }
         return await focusGuard.isStillFocused(afterGrace: .milliseconds(250))
+    }
+
+    private func runStreamingInbound(
+        streamer: any StreamingTranslationProvider,
+        job: TranslationJob
+    ) async {
+        var buffer = ""
+        do {
+            for try await update in streamer.translateStreaming(job) {
+                switch update {
+                case .chunk(let chunk):
+                    buffer += chunk
+                    hudController.updateLoading(buffer, persona: job.style)
+                case .done(let translation, _):
+                    let final = translation.isEmpty ? buffer : translation
+                    hudController.showResult(final, persona: job.style)
+                    return
+                }
+            }
+            if !buffer.isEmpty {
+                hudController.showResult(buffer, persona: job.style)
+            } else {
+                hudController.showError(TranslationError.missingTranslation.localizedDescription)
+            }
+        } catch {
+            hudController.showError(error.localizedDescription)
+        }
+    }
+
+    private func runOneShotInbound(
+        translator: any TranslationProvider,
+        job: TranslationJob
+    ) async {
+        do {
+            let result = try await translator.translate(job)
+            hudController.showResult(result.translation, persona: job.style)
+        } catch {
+            hudController.showError(error.localizedDescription)
+        }
     }
 }
 

@@ -69,13 +69,7 @@ private func httpResponse(url: String, status: Int, headers: [String: String] = 
 }
 
 private func makeJob(persona: Persona = .vietnameseReader, text: String = "xin chao") -> TranslationJob {
-    TranslationJob(
-        text: text,
-        direction: .inbound,
-        sourceLanguage: "auto",
-        targetLanguage: persona.targetLanguage,
-        persona: persona,
-        glossary: ""
+    TranslationJob(text: text, style: persona, sourceLanguage: "auto", glossary: ""
     )
 }
 
@@ -245,10 +239,8 @@ struct GoogleTranslateDirectProviderTests {
         )
         let job = TranslationJob(
             text: "xin chao",
-            direction: .inbound,
+            style: TranslationStyle(direction: .inbound, targetLanguage: "en", register: .neutral),
             sourceLanguage: "auto",
-            targetLanguage: "en",
-            persona: .vietnameseReader,
             glossary: ""
         )
         _ = try await provider.translate(job)
@@ -356,6 +348,194 @@ struct OpenAICompatibleDirectProviderTests {
             default:
                 Issue.record("Wrong case: \(error)")
             }
+        }
+    }
+}
+
+@Suite("DeepLDirectProvider")
+@MainActor
+struct DeepLDirectProviderTests {
+    private func makeJob(register: Register = .formal, target: String = "ja", source: String = "vi") -> TranslationJob {
+        TranslationJob(
+            text: "xin chao",
+            style: TranslationStyle(direction: .outbound, targetLanguage: target, register: register),
+            sourceLanguage: source,
+            glossary: ""
+        )
+    }
+
+    @Test("isConfigured requires API key")
+    func configurationGate() {
+        #expect(DeepLDirectProvider(config: .init(apiKey: "", useFreeEndpoint: true, timeout: 1)).isConfigured == false)
+        #expect(DeepLDirectProvider(config: .init(apiKey: "k", useFreeEndpoint: true, timeout: 1)).isConfigured == true)
+    }
+
+    @Test("Free endpoint hits api-free.deepl.com with DeepL-Auth-Key header")
+    func freeEndpoint() async throws {
+        DirectStubProtocol.reset()
+        DirectStubProtocol.stub = { _ in
+            (httpResponse(url: "https://api-free.deepl.com/v2/translate", status: 200),
+             Data(#"{"translations":[{"text":"こんにちは"}]}"#.utf8))
+        }
+        let provider = DeepLDirectProvider(
+            config: .init(apiKey: "k", useFreeEndpoint: true, timeout: 5),
+            session: stubSession()
+        )
+        _ = try await provider.translate(makeJob())
+
+        let request = try #require(DirectStubProtocol.capturedRequests.first)
+        #expect(request.url?.absoluteString.contains("api-free.deepl.com") == true)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "DeepL-Auth-Key k")
+    }
+
+    @Test("Pro endpoint hits api.deepl.com")
+    func proEndpoint() async throws {
+        DirectStubProtocol.reset()
+        DirectStubProtocol.stub = { _ in
+            (httpResponse(url: "https://api.deepl.com/v2/translate", status: 200),
+             Data(#"{"translations":[{"text":"x"}]}"#.utf8))
+        }
+        let provider = DeepLDirectProvider(
+            config: .init(apiKey: "k", useFreeEndpoint: false, timeout: 5),
+            session: stubSession()
+        )
+        _ = try await provider.translate(makeJob())
+
+        let request = try #require(DirectStubProtocol.capturedRequests.first)
+        #expect(request.url?.absoluteString.contains("api-free.deepl.com") == false)
+        #expect(request.url?.absoluteString.contains("api.deepl.com") == true)
+    }
+
+    @Test("Formal register sets formality=more in form body")
+    func formalityMore() async throws {
+        DirectStubProtocol.reset()
+        DirectStubProtocol.stub = { _ in
+            (httpResponse(url: "https://api-free.deepl.com/v2/translate", status: 200),
+             Data(#"{"translations":[{"text":"x"}]}"#.utf8))
+        }
+        let provider = DeepLDirectProvider(
+            config: .init(apiKey: "k", useFreeEndpoint: true, timeout: 5),
+            session: stubSession()
+        )
+        _ = try await provider.translate(makeJob(register: .formal))
+
+        let body = try #require(DirectStubProtocol.capturedBodies.first)
+        let str = String(data: body, encoding: .utf8) ?? ""
+        #expect(str.contains("formality=more"))
+    }
+
+    @Test("Casual register sets formality=less")
+    func formalityLess() async throws {
+        DirectStubProtocol.reset()
+        DirectStubProtocol.stub = { _ in
+            (httpResponse(url: "https://api-free.deepl.com/v2/translate", status: 200),
+             Data(#"{"translations":[{"text":"x"}]}"#.utf8))
+        }
+        let provider = DeepLDirectProvider(
+            config: .init(apiKey: "k", useFreeEndpoint: true, timeout: 5),
+            session: stubSession()
+        )
+        _ = try await provider.translate(makeJob(register: .casual))
+
+        let body = try #require(DirectStubProtocol.capturedBodies.first)
+        let str = String(data: body, encoding: .utf8) ?? ""
+        #expect(str.contains("formality=less"))
+    }
+
+    @Test("Auto source language omitted from form body")
+    func autoSourceOmitted() async throws {
+        DirectStubProtocol.reset()
+        DirectStubProtocol.stub = { _ in
+            (httpResponse(url: "https://api-free.deepl.com/v2/translate", status: 200),
+             Data(#"{"translations":[{"text":"x"}]}"#.utf8))
+        }
+        let provider = DeepLDirectProvider(
+            config: .init(apiKey: "k", useFreeEndpoint: true, timeout: 5),
+            session: stubSession()
+        )
+        _ = try await provider.translate(makeJob(source: "auto"))
+
+        let body = try #require(DirectStubProtocol.capturedBodies.first)
+        let str = String(data: body, encoding: .utf8) ?? ""
+        #expect(!str.contains("source_lang"))
+    }
+
+    @Test("BCP47 → DeepL code mapping")
+    func bcp47Mapping() {
+        #expect(DeepLDirectProvider.deeplCode(for: "en", target: true) == "EN-US")
+        #expect(DeepLDirectProvider.deeplCode(for: "en", target: false) == "EN")
+        #expect(DeepLDirectProvider.deeplCode(for: "ja", target: true) == "JA")
+        #expect(DeepLDirectProvider.deeplCode(for: "zh-CN", target: true) == "ZH")
+    }
+}
+
+@Suite("LibreTranslateDirectProvider")
+@MainActor
+struct LibreTranslateDirectProviderTests {
+    private func makeJob(target: String = "en", source: String = "vi", text: String = "xin chao") -> TranslationJob {
+        TranslationJob(
+            text: text,
+            style: TranslationStyle(direction: .outbound, targetLanguage: target, register: .neutral),
+            sourceLanguage: source,
+            glossary: ""
+        )
+    }
+
+    @Test("Posts q + source + target to <baseURL>/translate")
+    func postsCorrectShape() async throws {
+        DirectStubProtocol.reset()
+        DirectStubProtocol.stub = { _ in
+            (httpResponse(url: "https://libretranslate.com/translate", status: 200),
+             Data(#"{"translatedText":"hello"}"#.utf8))
+        }
+        let provider = LibreTranslateDirectProvider(
+            config: .init(baseURL: "https://libretranslate.com", apiKey: "", timeout: 5),
+            session: stubSession()
+        )
+        _ = try await provider.translate(makeJob())
+
+        let request = try #require(DirectStubProtocol.capturedRequests.first)
+        #expect(request.url?.path == "/translate")
+
+        let body = try #require(DirectStubProtocol.capturedBodies.first)
+        let payload = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(payload["q"] as? String == "xin chao")
+        #expect(payload["source"] as? String == "vi")
+        #expect(payload["target"] as? String == "en")
+        #expect(payload["api_key"] == nil)
+    }
+
+    @Test("Includes api_key when configured")
+    func includesAPIKey() async throws {
+        DirectStubProtocol.reset()
+        DirectStubProtocol.stub = { _ in
+            (httpResponse(url: "https://lt.example.com/translate", status: 200),
+             Data(#"{"translatedText":"hi"}"#.utf8))
+        }
+        let provider = LibreTranslateDirectProvider(
+            config: .init(baseURL: "https://lt.example.com/", apiKey: "secret", timeout: 5),
+            session: stubSession()
+        )
+        _ = try await provider.translate(makeJob())
+
+        let body = try #require(DirectStubProtocol.capturedBodies.first)
+        let payload = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(payload["api_key"] as? String == "secret")
+    }
+
+    @Test("Empty translatedText raises missingTranslation")
+    func emptyResponse() async throws {
+        DirectStubProtocol.reset()
+        DirectStubProtocol.stub = { _ in
+            (httpResponse(url: "https://libretranslate.com/translate", status: 200),
+             Data(#"{"translatedText":""}"#.utf8))
+        }
+        let provider = LibreTranslateDirectProvider(
+            config: .init(baseURL: "https://libretranslate.com", apiKey: "", timeout: 5),
+            session: stubSession()
+        )
+        await #expect(throws: TranslationError.self) {
+            _ = try await provider.translate(makeJob())
         }
     }
 }

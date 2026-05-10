@@ -81,13 +81,7 @@ private func makeBackend(endpoint: String = "http://127.0.0.1:8765/translate") -
 }
 
 private func makeJob() -> TranslationJob {
-    TranslationJob(
-        text: "xin chao",
-        direction: .inbound,
-        sourceLanguage: "auto",
-        targetLanguage: "vi",
-        persona: .vietnameseReader,
-        glossary: ""
+    TranslationJob(text: "xin chao", style: .vietnameseReader, sourceLanguage: "auto", glossary: ""
     )
 }
 

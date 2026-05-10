@@ -59,6 +59,15 @@ final class HUDController {
         ), autoHideAfter: .seconds(6))
     }
 
+    /// Hide the HUD immediately. Called by the workflow before opening
+    /// the preview HUD so the user doesn't see two stacked panels (the
+    /// trailing "Translating message..." loading HUD plus the preview).
+    func dismiss() {
+        hideTask?.cancel()
+        hideTask = nil
+        panel?.orderOut(nil)
+    }
+
     private func show(_ state: HUDState, autoHideAfter delay: Duration?) {
         hideTask?.cancel()
         let panel = panel ?? makePanel()

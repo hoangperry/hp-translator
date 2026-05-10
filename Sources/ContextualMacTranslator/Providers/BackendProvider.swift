@@ -81,8 +81,8 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
             direction: job.direction.rawValue,
             sourceLanguage: job.sourceLanguage,
             targetLanguage: job.targetLanguage,
-            persona: job.persona.rawValue,
-            styleInstruction: job.persona.styleInstruction,
+            persona: job.style.rawValue,
+            styleInstruction: job.style.styleInstruction,
             glossary: job.glossary
         )
         request.httpBody = try JSONEncoder().encode(body)
@@ -152,8 +152,8 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
             direction: job.direction.rawValue,
             sourceLanguage: job.sourceLanguage,
             targetLanguage: job.targetLanguage,
-            persona: job.persona.rawValue,
-            styleInstruction: job.persona.styleInstruction,
+            persona: job.style.rawValue,
+            styleInstruction: job.style.styleInstruction,
             glossary: job.glossary
         )
         request.httpBody = try JSONEncoder().encode(body)

@@ -20,10 +20,11 @@ struct PersonaTests {
         #expect(Persona.vietnameseReader.previewByDefault == false)
     }
 
-    @Test("All personas have a non-empty display badge")
+    @Test("All legacy personas have a non-empty display badge")
     func badgesPresent() {
-        for persona in Persona.allCases {
-            #expect(!persona.displayBadge.isEmpty, "\(persona) missing badge")
+        let personas: [Persona] = [.vietnameseReader, .japaneseBusiness, .japaneseCasual]
+        for persona in personas {
+            #expect(!persona.displayBadge.isEmpty)
         }
     }
 

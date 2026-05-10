@@ -12,6 +12,6 @@ final class MockDirectProvider: TranslationProvider {
     var isConfigured: Bool { true }
 
     func translate(_ job: TranslationJob) async throws -> TranslationResult {
-        TranslationResult(translation: "[\(job.persona.rawValue)] \(job.text)")
+        TranslationResult(translation: "[\(job.style.rawValue)] \(job.text)")
     }
 }

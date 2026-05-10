@@ -1,33 +1,61 @@
 import Carbon.HIToolbox
 import Foundation
 
+/// Generic global hotkey manager backed by Carbon `RegisterEventHotKey`.
+///
+/// v0.3 refactor: instead of three hardcoded callbacks (`onInbound`,
+/// `onOutboundKeigo`, `onOutboundCasual`), the manager now accepts a
+/// dynamic list of `Registration`s. Each registration carries a
+/// `HotkeyConfig` + an action closure. Re-registering replaces the
+/// previous set so Settings changes apply on demand.
 @MainActor
 final class HotKeyManager {
-    var onInbound: (() -> Void)?
-    var onOutboundKeigo: (() -> Void)?
-    var onOutboundCasual: (() -> Void)?
-
-    private var handler: EventHandlerRef?
-    private var registeredRefs: [EventHotKeyRef] = []
-
-    private enum HotKeyID: UInt32 {
-        case inbound = 1
-        case outboundKeigo = 2
-        case outboundCasual = 3
+    /// One global hotkey + the action to fire when it's pressed.
+    struct Registration {
+        let id: UInt32
+        let config: HotkeyConfig
+        let action: @MainActor () -> Void
     }
 
-    private static let signature = OSType(0x43545854) // CTXT
+    private var handler: EventHandlerRef?
+    private var registeredRefs: [(EventHotKeyRef, UInt32)] = []
+    private var actions: [UInt32: @MainActor () -> Void] = [:]
 
-    func registerDefaults() {
+    private static let signature = OSType(0x43545854) // "CTXT"
+
+    /// Replace the current hotkey set with `registrations`. Caller is
+    /// responsible for assigning unique non-zero IDs.
+    func register(_ registrations: [Registration]) {
+        unregisterAll()
         installHandlerIfNeeded()
-        register(id: .inbound, keyCode: kVK_ANSI_D, modifiers: optionKey)
-        register(id: .outboundKeigo, keyCode: kVK_Return, modifiers: cmdKey)
-        register(id: .outboundCasual, keyCode: kVK_Return, modifiers: optionKey)
+        for reg in registrations {
+            registerOne(id: reg.id, config: reg.config, action: reg.action)
+        }
+    }
+
+    /// Convenience: assigns sequential IDs starting at 1 (inbound) then
+    /// 2..N (outbound bindings in declaration order).
+    func register(
+        inbound: HotkeyConfig,
+        inboundAction: @escaping @MainActor () -> Void,
+        outbound: [(config: HotkeyConfig, action: @MainActor () -> Void)]
+    ) {
+        var registrations: [Registration] = []
+        registrations.append(.init(id: 1, config: inbound, action: inboundAction))
+        for (index, entry) in outbound.enumerated() {
+            registrations.append(.init(
+                id: UInt32(2 + index),
+                config: entry.config,
+                action: entry.action
+            ))
+        }
+        register(registrations)
     }
 
     func unregisterAll() {
-        registeredRefs.forEach { UnregisterEventHotKey($0) }
+        registeredRefs.forEach { UnregisterEventHotKey($0.0) }
         registeredRefs.removeAll()
+        actions.removeAll()
 
         if let handler {
             RemoveEventHandler(handler)
@@ -53,33 +81,25 @@ final class HotKeyManager {
         )
     }
 
-    private func register(id: HotKeyID, keyCode: Int, modifiers: Int) {
-        let hotKeyID = EventHotKeyID(signature: Self.signature, id: id.rawValue)
+    private func registerOne(id: UInt32, config: HotkeyConfig, action: @escaping @MainActor () -> Void) {
+        let hotKeyID = EventHotKeyID(signature: Self.signature, id: id)
         var ref: EventHotKeyRef?
         let status = RegisterEventHotKey(
-            UInt32(keyCode),
-            UInt32(modifiers),
+            config.keyCode,
+            config.modifiers,
             hotKeyID,
             GetApplicationEventTarget(),
             0,
             &ref
         )
         if status == noErr, let ref {
-            registeredRefs.append(ref)
+            registeredRefs.append((ref, id))
+            actions[id] = action
         }
     }
 
     fileprivate func handle(id: UInt32) {
-        switch HotKeyID(rawValue: id) {
-        case .inbound:
-            onInbound?()
-        case .outboundKeigo:
-            onOutboundKeigo?()
-        case .outboundCasual:
-            onOutboundCasual?()
-        case .none:
-            break
-        }
+        actions[id]?()
     }
 }
 

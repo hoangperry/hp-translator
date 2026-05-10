@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -6,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: SettingsWindowController?
     private var onboardingWindowController: OnboardingWindowController?
     private var hotKeysRegistered = false
+    private var bindingObservers: Set<AnyCancellable> = []
 
     private lazy var permissionManager = PermissionManager()
     private lazy var hudController = HUDController()
@@ -21,12 +23,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var hotKeyManager = HotKeyManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        buildMainMenu()
         buildStatusItem()
         if SettingsStore.shared.firstRunCompleted {
             registerHotKeys()
         } else {
             showOnboarding()
         }
+    }
+
+    /// LSUIElement apps don't get a standard menu bar, so SwiftUI
+    /// `TextField`/`SecureField` inside Settings + Onboarding windows
+    /// have no `Cut/Copy/Paste/Undo` Cmd-shortcuts wired by default.
+    /// Installing a minimal Edit menu via `NSApp.mainMenu` re-enables
+    /// the system-standard responder-chain bindings even when the menu
+    /// itself isn't visible (`LSUIElement` hides it from the menu bar).
+    private func buildMainMenu() {
+        let mainMenu = NSMenu()
+
+        // App submenu — only need Quit; SwiftUI windows get the rest
+        // via the responder chain.
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+        let appMenu = NSMenu()
+        appMenu.addItem(NSMenuItem(
+            title: "Quit Contextual Mac Translator",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        ))
+        appMenuItem.submenu = appMenu
+
+        // Edit submenu — the actual fix for Cmd-C/X/V/A in text fields.
+        let editMenuItem = NSMenuItem()
+        mainMenu.addItem(editMenuItem)
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"))
+        let redoItem = NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redoItem.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(redoItem)
+        editMenu.addItem(.separator())
+        editMenu.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        editMenu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        editMenu.addItem(NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        editMenu.addItem(NSMenuItem(
+            title: "Select All",
+            action: #selector(NSText.selectAll(_:)),
+            keyEquivalent: "a"
+        ))
+        editMenuItem.submenu = editMenu
+
+        NSApp.mainMenu = mainMenu
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -81,24 +127,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
-    private func registerHotKeys() {
-        guard !hotKeysRegistered else { return }
-        hotKeyManager.onInbound = { [weak self] in
-            Task { @MainActor in
-                await self?.workflow.translateSelection()
-            }
+    /// Re-register all global hotkeys from the current settings. Safe to
+    /// call repeatedly — `HotKeyManager.register` clears the previous set
+    /// first. Also subscribes to `SettingsStore` binding changes the first
+    /// time, so Settings UI edits re-register hotkeys automatically.
+    func registerHotKeys() {
+        applyHotKeys()
+        observeBindingChangesIfNeeded()
+    }
+
+    private func observeBindingChangesIfNeeded() {
+        guard bindingObservers.isEmpty else { return }
+        let settings = SettingsStore.shared
+        settings.$inboundBinding
+            .dropFirst()
+            .sink { [weak self] _ in self?.applyHotKeys() }
+            .store(in: &bindingObservers)
+        settings.$outboundBindings
+            .dropFirst()
+            .sink { [weak self] _ in self?.applyHotKeys() }
+            .store(in: &bindingObservers)
+    }
+
+    private func applyHotKeys() {
+        let settings = SettingsStore.shared
+        let outbound = settings.outboundBindings.map { binding -> (config: HotkeyConfig, action: @MainActor () -> Void) in
+            let style = binding.style()
+            return (
+                config: binding.hotkey,
+                action: { [weak self] in
+                    Task { @MainActor in
+                        await self?.workflow.translateAndSend(persona: style)
+                    }
+                }
+            )
         }
-        hotKeyManager.onOutboundKeigo = { [weak self] in
-            Task { @MainActor in
-                await self?.workflow.translateAndSend(persona: .japaneseBusiness)
-            }
-        }
-        hotKeyManager.onOutboundCasual = { [weak self] in
-            Task { @MainActor in
-                await self?.workflow.translateAndSend(persona: .japaneseCasual)
-            }
-        }
-        hotKeyManager.registerDefaults()
+        hotKeyManager.register(
+            inbound: settings.inboundBinding.hotkey,
+            inboundAction: { [weak self] in
+                Task { @MainActor in
+                    await self?.workflow.translateSelection()
+                }
+            },
+            outbound: outbound
+        )
         hotKeysRegistered = true
     }
 
@@ -124,13 +196,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func sendKeigo() {
         Task { @MainActor in
-            await workflow.translateAndSend(persona: .japaneseBusiness)
+            // Status-bar fallback for first outbound binding marked formal.
+            let style: TranslationStyle = SettingsStore.shared.outboundBindings.first(where: { $0.register == .formal })?.style() ?? .japaneseBusiness
+            await workflow.translateAndSend(persona: style)
         }
     }
 
     @objc private func sendCasual() {
         Task { @MainActor in
-            await workflow.translateAndSend(persona: .japaneseCasual)
+            let style: TranslationStyle = SettingsStore.shared.outboundBindings.first(where: { $0.register == .casual })?.style() ?? .japaneseCasual
+            await workflow.translateAndSend(persona: style)
         }
     }
 

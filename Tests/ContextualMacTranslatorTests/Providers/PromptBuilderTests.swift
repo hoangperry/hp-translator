@@ -15,23 +15,20 @@ struct PromptBuilderTests {
         #expect(!prompt.hasSuffix(" "))
     }
 
-    @Test("Persona style rules cover all three personas")
+    @Test("Style rule covers all three legacy personas + arbitrary lang")
     func styleRulesCoverPersonas() {
-        for persona in Persona.allCases {
-            let rule = PromptBuilder.styleRule(for: persona)
-            #expect(!rule.isEmpty, "Persona \(persona.rawValue) missing style rule")
+        let presets: [Persona] = [.vietnameseReader, .japaneseBusiness, .japaneseCasual]
+        for persona in presets {
+            #expect(!PromptBuilder.styleRule(for: persona).isEmpty)
         }
+        // New languages get a non-empty style rule too.
+        let korean = TranslationStyle(direction: .outbound, targetLanguage: "ko", register: .formal)
+        #expect(!PromptBuilder.styleRule(for: korean).isEmpty)
     }
 
     @Test("User prompt embeds task fields verbatim")
     func userPromptEmbedsFields() {
-        let job = TranslationJob(
-            text: "Xin chao anh",
-            direction: .outbound,
-            sourceLanguage: "vi",
-            targetLanguage: "ja",
-            persona: .japaneseBusiness,
-            glossary: "API = エーピーアイ"
+        let job = TranslationJob(text: "Xin chao anh", style: .japaneseBusiness, sourceLanguage: "vi", glossary: "API = エーピーアイ"
         )
 
         let prompt = PromptBuilder.userPrompt(for: job)
@@ -39,7 +36,7 @@ struct PromptBuilderTests {
         #expect(prompt.contains("Direction: outbound"))
         #expect(prompt.contains("Source language: vi"))
         #expect(prompt.contains("Target language: ja"))
-        #expect(prompt.contains("Persona: japaneseBusiness"))
+        #expect(prompt.contains("Register: formal"))
         #expect(prompt.contains("API = エーピーアイ"))
         #expect(prompt.contains("Xin chao anh"))
         #expect(prompt.hasSuffix("Return only the translation."))
@@ -47,13 +44,7 @@ struct PromptBuilderTests {
 
     @Test("Empty glossary renders as `(empty)`")
     func emptyGlossaryFallback() {
-        let job = TranslationJob(
-            text: "hi",
-            direction: .inbound,
-            sourceLanguage: "ja",
-            targetLanguage: "vi",
-            persona: .vietnameseReader,
-            glossary: ""
+        let job = TranslationJob(text: "hi", style: .vietnameseReader, sourceLanguage: "ja", glossary: ""
         )
 
         #expect(PromptBuilder.userPrompt(for: job).contains("Glossary:\n(empty)"))
