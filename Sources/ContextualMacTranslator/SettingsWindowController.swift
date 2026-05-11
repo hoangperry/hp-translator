@@ -26,6 +26,8 @@ final class SettingsWindowController {
 struct SettingsView: View {
     @ObservedObject private var settings = SettingsStore.shared
     @ObservedObject var permissionManager: PermissionManager
+    @State private var inboundRecorderShown = false
+    @State private var outboundRecorderID: UUID?
 
     var body: some View {
         ScrollView {
@@ -71,11 +73,14 @@ struct SettingsView: View {
                 Text("Inbound hotkey (selection → my language)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text(settings.inboundBinding.hotkey.displayLabel)
-                    .font(.system(.body, design: .monospaced))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                HStack {
+                    Text(settings.inboundBinding.hotkey.displayLabel)
+                        .font(.system(.body, design: .monospaced))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                    Button("Change…") { inboundRecorderShown = true }
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -86,13 +91,36 @@ struct SettingsView: View {
                     Button("Add target") { addOutboundBinding() }
                 }
                 ForEach($settings.outboundBindings) { $binding in
-                    OutboundBindingRow(binding: $binding) { removeBinding(binding) }
+                    OutboundBindingRow(
+                        binding: $binding,
+                        onChangeHotkey: { outboundRecorderID = binding.id },
+                        onDelete: { removeBinding(binding) }
+                    )
                 }
                 if settings.outboundBindings.isEmpty {
                     Text("No outbound targets configured. Add one above to translate from your primary language to another.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+        }
+        .sheet(isPresented: $inboundRecorderShown) {
+            HotkeyRecorderSheet(
+                hotkey: $settings.inboundBinding.hotkey,
+                isPresented: $inboundRecorderShown,
+                ownerBindingID: nil
+            )
+        }
+        .sheet(item: $outboundRecorderID) { bindingID in
+            if let index = settings.outboundBindings.firstIndex(where: { $0.id == bindingID }) {
+                HotkeyRecorderSheet(
+                    hotkey: $settings.outboundBindings[index].hotkey,
+                    isPresented: Binding(
+                        get: { outboundRecorderID != nil },
+                        set: { if !$0 { outboundRecorderID = nil } }
+                    ),
+                    ownerBindingID: bindingID
+                )
             }
         }
     }
@@ -370,12 +398,13 @@ private struct PermissionRow: View {
 }
 
 /// Editable row for one outbound binding (target language + register +
-/// hotkey display). Hotkey recorder UI is deferred to a follow-up; for
-/// now the hotkey is shown but immutable from here — users can edit by
-/// removing + re-adding.
+/// hotkey + optional custom style instruction). Hotkey is changed via a
+/// modal recorder sheet (`onChangeHotkey` triggers parent to present it).
 private struct OutboundBindingRow: View {
     @Binding var binding: OutboundBinding
+    let onChangeHotkey: () -> Void
     let onDelete: () -> Void
+    @State private var showCustomStyle = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -406,14 +435,45 @@ private struct OutboundBindingRow: View {
                     .padding(.vertical, 4)
                     .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
 
+                Button("Change…") { onChangeHotkey() }
+                    .help("Re-record this hotkey")
+
                 Button(role: .destructive) { onDelete() } label: {
                     Image(systemName: "minus.circle")
                 }
                 .buttonStyle(.borderless)
                 .help("Remove this outbound target")
             }
+
+            HStack {
+                Toggle(isOn: $showCustomStyle) {
+                    Text("Custom style instruction")
+                        .font(.caption)
+                }
+                .toggleStyle(.checkbox)
+                Spacer()
+            }
+            if showCustomStyle || !binding.customStyleInstruction.isEmpty {
+                TextEditor(text: $binding.customStyleInstruction)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(minHeight: 60, maxHeight: 110)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(.separator, lineWidth: 1)
+                    )
+                Text("Overrides the default LLM style for this target. Leave empty to use the auto-derived register-aware instruction.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(8)
         .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
     }
+}
+
+// MARK: - UUID `Identifiable` for `.sheet(item:)` binding
+
+extension UUID: Identifiable {
+    public var id: UUID { self }
 }

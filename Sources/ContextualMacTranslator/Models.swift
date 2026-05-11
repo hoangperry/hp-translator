@@ -51,11 +51,21 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
     let direction: TranslationDirection
     let targetLanguage: String   // BCP47 — e.g. "vi", "ja", "en", "zh-CN"
     let register: Register
+    /// Per-binding LLM style instruction override. When non-empty, used
+    /// instead of the derived (lang, register) instruction. Empty string
+    /// = use the derived default.
+    let customStyleInstruction: String
 
-    init(direction: TranslationDirection, targetLanguage: String, register: Register) {
+    init(
+        direction: TranslationDirection,
+        targetLanguage: String,
+        register: Register,
+        customStyleInstruction: String = ""
+    ) {
         self.direction = direction
         self.targetLanguage = targetLanguage
         self.register = register
+        self.customStyleInstruction = customStyleInstruction
     }
 
     var languageDisplayName: String {
@@ -103,9 +113,19 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
         direction == .outbound && register == .formal
     }
 
-    /// Style instruction passed alongside the system prompt. The LLM uses
-    /// this + the target language name to pick correct register conventions.
+    /// Style instruction passed alongside the system prompt. Uses
+    /// `customStyleInstruction` when set; otherwise derives from
+    /// (target language, register).
     var styleInstruction: String {
+        if !customStyleInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return customStyleInstruction
+        }
+        return derivedStyleInstruction
+    }
+
+    /// Default LLM instruction for this (lang, register) pair, used when
+    /// the binding doesn't override it.
+    var derivedStyleInstruction: String {
         let langName = languageDisplayName
         switch register {
         case .formal:
@@ -358,7 +378,12 @@ struct OutboundBinding: Codable, Equatable, Identifiable, Hashable, Sendable {
     }
 
     func style(direction: TranslationDirection = .outbound) -> TranslationStyle {
-        TranslationStyle(direction: direction, targetLanguage: languageCode, register: register)
+        TranslationStyle(
+            direction: direction,
+            targetLanguage: languageCode,
+            register: register,
+            customStyleInstruction: customStyleInstruction
+        )
     }
 
     // Default seed bindings reproduce v0.2 keigo + casual hotkeys.

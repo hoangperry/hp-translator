@@ -365,4 +365,23 @@ final class SettingsStore: ObservableObject {
             try? keychain.write(value, account: account)
         }
     }
+
+    // MARK: Conflict detection
+
+    /// Check whether `hotkey` is already used by an inbound or outbound
+    /// binding. Optional `excludeID` skips a specific outbound binding so
+    /// users can re-confirm an existing hotkey without spurious warnings.
+    /// Returns the human-readable label of the conflicting binding when
+    /// found, or `nil` when free.
+    func bindingLabel(usingHotkey hotkey: HotkeyConfig, excluding excludeID: UUID? = nil) -> String? {
+        if inboundBinding.hotkey == hotkey {
+            return "Inbound (selection → \(LanguageCatalog.englishName(for: primaryLanguage)))"
+        }
+        for binding in outboundBindings where binding.id != excludeID {
+            if binding.hotkey == hotkey {
+                return binding.displayName
+            }
+        }
+        return nil
+    }
 }
