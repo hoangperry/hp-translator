@@ -8,7 +8,46 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
 
 ## [Unreleased]
 
-— (chưa có thay đổi)
+### Planned for [0.4.0] — M2.0 SaaS Foundation (target 2026-07)
+
+**Major: Apple Developer ID signing + notarization**
+
+- DMG signed với Developer ID Application certificate, hardened runtime, timestamped.
+- Notarized via `xcrun notarytool` + stapled. End-users no longer see "unidentified developer" warning on first launch.
+- See `../docs/APPLE-DEVELOPER-SIGNING.md` cho full ops runbook.
+
+**Bundle ID migration** *(breaking for existing Keychain entries)*
+
+- Bundle ID changes from `app.lookerlab.translator` → `dev.hoangtruong.translator`.
+- Existing API keys stored in Keychain under old bundle ID **won't carry over**. App shows in-app banner trên first launch của v0.4.0+ asking user to re-enter credentials.
+- Reason: align with Apple Dev individual enrollment legal name; bundle ID `app.lookerlab.*` doesn't match developer identity.
+
+**Sparkle auto-update**
+
+- App tích hợp Sparkle 2 với EdDSA-signed appcasts hosted at static URL (no auth required per FR-DIST-004).
+- Daily check, user can opt out during first-launch onboarding.
+
+**SaaS sign-in (opt-in)**
+
+- Settings → **Backend** picker: "Contextual MT Cloud" (default, opens magic-link flow) | "Self-hosted / Custom backend" (existing URL + token field — unchanged behavior).
+- Cloud path uses email magic link or Google OAuth (`ASWebAuthenticationSession`).
+- JWT access token (15min) + refresh token (30 day, single-use rotation) stored in Keychain.
+- ed25519 device keypair generated on first launch; public key registered with server for FR-AUTH-005 device limit enforcement.
+
+**Permission walkthrough**
+
+- First-launch onboarding sheet với screenshots + plain-English purpose explainer cho AX + Input Monitoring permission requests. Captures denial → in-app explainer + re-request flow.
+
+### Planned for [0.4.1] — M2.1 Translation + Quota (target 2026-08)
+
+- Token-based quota enforcement (3K Solo / 15K Pro per FR-QUOTA-001) with HUD upgrade CTA at limit.
+- Per-user encrypted server cache (libsodium per-user-key derivation, FR-CACHE-001).
+- Conversation memory (3-turn Solo / 5-turn Pro) — server keeps thread context for coherent multi-turn translations.
+- Smart provider routing (Pro only, FR-ROUTE-005).
+- Multi-device sync for glossaries + personas.
+- BYOK mode for Pro users (API keys stay in macOS Keychain, never sent to our server).
+
+> See [`../docs/PRD-saas-m2.md`](../docs/PRD-saas-m2.md) for full M2 specification and the adversarial review findings that shaped it.
 
 ## [0.3.1] — 2026-05-11
 
