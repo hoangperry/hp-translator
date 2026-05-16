@@ -52,7 +52,7 @@ Sau khi mở app:
 1. Mở Settings từ menu bar.
 2. Endpoint mặc định: `http://127.0.0.1:8765/translate` (loopback sang backend chạy local). Remote endpoint phải dùng `https://`.
 3. Nếu backend yêu cầu bearer auth, dán token vào field "API Key". Token được lưu trong Keychain (không trong UserDefaults).
-4. Glossary là mảng `term=preferredTranslation` mỗi dòng một cặp; cũng lưu trong Keychain.
+4. Glossary là mảng `term = preferredTranslation` mỗi dòng một cặp; cũng lưu trong Keychain. Dòng bắt đầu bằng `#` là comment. Có sẵn glossary IT khởi đầu (EN/VI → JP, ~140 thuật ngữ chuẩn nghiệp cho BrSE) tại [`examples/it-glossary-en-ja.txt`](examples/it-glossary-en-ja.txt) — copy các dòng cần dùng vào Settings.
 
 Client gửi `Authorization: Bearer <token>` khi field API key có giá trị, bỏ qua header nếu rỗng.
 

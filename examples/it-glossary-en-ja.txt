@@ -1,0 +1,158 @@
+# ============================================================================
+# IT / Software-Engineering Glossary — English → Japanese (business register)
+#
+# Starter glossary for Vietnamese bridge engineers (BrSE) writing to a
+# Japanese client. Paste the lines you want into Settings → Glossary.
+#
+# Format (see PRD FR-14):
+#   source = target      one mapping per line
+#   # ...                comment line (ignored)
+#   (blank line)         ignored
+#
+# Keys are English because VN engineers usually write tech terms in English
+# even inside Vietnamese sentences ("em sẽ fix bug này"). Add your own
+# Vietnamese-keyed lines for terms your team writes in Vietnamese.
+#
+# Japanese targets favour the term a JP client EXPECTS — e.g. 不具合 over
+# バグ in formal defect reports, 納期 for a delivery deadline, 工数 for effort.
+# Edit freely; this is a starting point, not a rule.
+# ============================================================================
+
+# --- SDLC / process ---------------------------------------------------------
+requirement definition = 要件定義
+requirements = 要件
+requirement spec = 要求仕様
+basic design = 基本設計
+detailed design = 詳細設計
+implementation = 実装
+coding = コーディング
+unit test = 単体テスト
+integration test = 結合テスト
+system test = 総合テスト
+acceptance test = 受入テスト
+test case = テストケース
+test evidence = エビデンス
+load test = 負荷テスト
+release = リリース
+deploy = デプロイ
+deployment = リリース作業
+delivery = 納品
+deliverable = 成果物
+specification = 仕様
+spec = 仕様
+spec document = 仕様書
+specification change = 仕様変更
+change request = 仕様変更依頼
+
+# --- bug / quality ----------------------------------------------------------
+bug = 不具合
+defect = 不具合
+issue = 課題
+fix = 修正
+hotfix = 緊急修正
+regression = デグレ
+root cause = 根本原因
+investigation = 調査
+workaround = 暫定対応
+permanent fix = 恒久対応
+impact = 影響範囲
+impact analysis = 影響調査
+quality = 品質
+defect report = 不具合報告
+incident = 障害
+
+# --- git / code -------------------------------------------------------------
+code review = コードレビュー
+commit = コミット
+branch = ブランチ
+merge = マージ
+pull request = レビュー依頼
+conflict = コンフリクト
+rebase = リベース
+repository = リポジトリ
+build = ビルド
+compile = コンパイル
+patch = パッチ
+version = バージョン
+changelog = 変更履歴
+release note = リリースノート
+
+# --- architecture -----------------------------------------------------------
+API = API
+database = データベース
+server = サーバー
+frontend = フロントエンド
+backend = バックエンド
+framework = フレームワーク
+library = ライブラリ
+microservice = マイクロサービス
+log = ログ
+error = エラー
+exception = 例外
+timeout = タイムアウト
+performance = 性能
+security = セキュリティ
+vulnerability = 脆弱性
+authentication = 認証
+authorization = 権限
+encryption = 暗号化
+backup = バックアップ
+migration = マイグレーション
+data migration = データ移行
+rollback = 切り戻し
+monitoring = 監視
+maintenance = 保守
+
+# --- environment ------------------------------------------------------------
+environment = 環境
+development environment = 開発環境
+staging = ステージング環境
+production = 本番環境
+downtime = 停止時間
+
+# --- project management / comms ---------------------------------------------
+schedule = スケジュール
+deadline = 納期
+milestone = マイルストーン
+progress = 進捗
+progress report = 進捗報告
+estimate = 見積もり
+effort = 工数
+man-hour = 工数
+scope = スコープ
+remaining work = 残作業
+additional work = 追加作業
+completion = 完了
+in progress = 対応中
+not started = 未着手
+on hold = 保留
+escalation = エスカレーション
+meeting = ミーティング
+minutes = 議事録
+daily standup = 朝会
+sprint = スプリント
+backlog = バックログ
+task = タスク
+ticket = チケット
+assignee = 担当者
+kickoff = キックオフ
+review meeting = レビュー会
+confirmation = 確認
+approval = 承認
+response = 回答
+request = 依頼
+
+# --- roles ------------------------------------------------------------------
+bridge engineer = ブリッジSE
+project manager = プロジェクトマネージャー
+product owner = プロダクトオーナー
+customer = お客様
+client = お客様
+offshore = オフショア
+onsite = オンサイト
+
+# --- Vietnamese-keyed examples (extend with your team's wording) ------------
+lỗi = 不具合
+yêu cầu = 要件
+tiến độ = 進捗
+xác nhận = 確認
