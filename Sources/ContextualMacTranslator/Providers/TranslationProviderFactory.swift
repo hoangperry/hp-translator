@@ -122,6 +122,26 @@ final class TranslationProviderFactory {
         // BackendProvider via the `BackendProviderAdapter`.
         switch settings.translationSource {
         case .firstPartyBackend:
+            // SaaS cloud (M2.1): when the 1st-party backend uses Supabase
+            // email-OTP auth, build a fresh SupabaseAuthService that reads
+            // the latest session from the Keychain store and feed
+            // BackendProvider a refreshing access-token closure.
+            if settings.backendAuthMode == .saasSupabaseSession,
+               let config = settings.supabaseAuthConfig() {
+                let authService = SupabaseAuthService(
+                    config: config,
+                    session: session,
+                    store: settings.makeSupabaseSessionStore()
+                )
+                let endpoint = settings.supabaseTranslateEndpoint
+                return BackendProvider(
+                    settings: settings,
+                    session: session,
+                    idempotencyKeyProvider: idempotencyKeyProvider,
+                    endpointOverride: { endpoint },
+                    accessTokenProvider: { try await authService.currentAccessToken() }
+                )
+            }
             return BackendProvider(
                 settings: settings,
                 session: session,

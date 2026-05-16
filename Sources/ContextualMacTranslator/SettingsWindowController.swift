@@ -28,6 +28,7 @@ struct SettingsView: View {
     @ObservedObject var permissionManager: PermissionManager
     @State private var inboundRecorderShown = false
     @State private var outboundRecorderID: UUID?
+    @StateObject private var cloudAuth = SupabaseAuthViewModel(settings: .shared)
 
     var body: some View {
         ScrollView {
@@ -271,9 +272,28 @@ struct SettingsView: View {
     }
 
     private var firstPartyForm: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("1st-party backend")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Contextual MT backend")
                 .font(.headline)
+            Picker("Authentication", selection: $settings.backendAuthMode) {
+                Text("Self-hosted · issued token")
+                    .tag(BackendAuthMode.selfHostStaticToken)
+                Text("Contextual MT Cloud · email sign-in")
+                    .tag(BackendAuthMode.saasSupabaseSession)
+            }
+            .pickerStyle(.radioGroup)
+            .labelsHidden()
+
+            if settings.backendAuthMode == .selfHostStaticToken {
+                selfHostBackendFields
+            } else {
+                cloudConnectForm
+            }
+        }
+    }
+
+    private var selfHostBackendFields: some View {
+        VStack(alignment: .leading, spacing: 8) {
             LabeledTextField(label: "Endpoint", text: $settings.firstPartyEndpoint, placeholder: "https://translator.lookerlab.app/translate")
             if let warning = EndpointPolicy.warning(for: settings.firstPartyEndpoint) {
                 Label(warning, systemImage: "exclamationmark.triangle.fill")
@@ -281,10 +301,84 @@ struct SettingsView: View {
                     .foregroundStyle(.orange)
             }
             LabeledSecureField(label: "Issued token", text: $settings.firstPartyToken, placeholder: "Bearer token from service operator")
-            Text("Switching to 1st-party preserves your custom backend credentials in the other tab.")
+            Text("Switching modes preserves your custom backend credentials in the other tab.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// "Connect to Cloud" email-OTP flow (M2.1-a). State machine driven by
+    /// `cloudAuth.phase`.
+    private var cloudConnectForm: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            LabeledTextField(label: "Supabase project URL", text: $settings.supabaseURL, placeholder: "https://<ref>.supabase.co")
+            LabeledSecureField(label: "Supabase anon key", text: $settings.supabaseAnonKey, placeholder: "public anon key")
+
+            Divider()
+
+            switch cloudAuth.phase {
+            case .idle, .error:
+                cloudEmailEntry
+            case .sending:
+                ProgressView("Sending code…").controlSize(.small)
+            case .codeSent:
+                cloudCodeEntry
+            case .verifying:
+                ProgressView("Connecting…").controlSize(.small)
+            case .connected(let email):
+                cloudConnected(email: email)
+            }
+
+            if case let .error(message) = cloudAuth.phase {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .task { await cloudAuth.refreshConnectionState() }
+    }
+
+    private var cloudEmailEntry: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LabeledTextField(label: "Email", text: $cloudAuth.emailInput, placeholder: "[email protected]")
+            Button("Send sign-in code") {
+                Task { await cloudAuth.sendCode() }
+            }
+            Text("We email a 6-digit code. No password.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var cloudCodeEntry: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LabeledTextField(label: "6-digit code", text: $cloudAuth.codeInput, placeholder: "123456")
+            HStack {
+                Button("Verify & connect") {
+                    Task { await cloudAuth.verify() }
+                }
+                Button("Use a different email") {
+                    Task { await cloudAuth.signOut() }
+                }
+                .buttonStyle(.link)
+            }
+        }
+    }
+
+    private func cloudConnected(email: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(
+                email.isEmpty ? "Connected to Contextual MT Cloud" : "Connected as \(email)",
+                systemImage: "checkmark.seal.fill"
+            )
+            .font(.callout)
+            .foregroundStyle(.green)
+            Button("Sign out") {
+                Task { await cloudAuth.signOut() }
+            }
+            .buttonStyle(.link)
         }
     }
 

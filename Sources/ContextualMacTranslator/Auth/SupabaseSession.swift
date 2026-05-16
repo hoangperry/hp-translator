@@ -39,8 +39,10 @@ enum BackendAuthMode: String, Codable, CaseIterable, Sendable {
 }
 
 /// Errors surfaced by `SupabaseAuthService`. Equatable so tests can assert
-/// on the exact failure without string matching.
-enum SupabaseAuthError: Error, Equatable {
+/// on the exact failure without string matching. `LocalizedError` so a
+/// translation that fails on auth shows the actionable `userMessage` in the
+/// HUD instead of a generic Cocoa error string.
+enum SupabaseAuthError: Error, Equatable, LocalizedError {
     /// Project URL / anon key not configured.
     case notConfigured
     /// OTP email send rejected by GoTrue.
@@ -74,4 +76,7 @@ enum SupabaseAuthError: Error, Equatable {
             return "Network error reaching the cloud backend: \(detail)"
         }
     }
+
+    /// `LocalizedError` — surfaces `userMessage` through `localizedDescription`.
+    var errorDescription: String? { userMessage }
 }

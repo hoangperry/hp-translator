@@ -57,6 +57,33 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    // MARK: SaaS cloud auth (M2.1)
+
+    /// How the 1st-party backend authenticates: a static issued token
+    /// (self-host) or a refreshable Supabase email-OTP session (cloud).
+    @Published var backendAuthMode: BackendAuthMode {
+        didSet {
+            guard backendAuthMode != oldValue else { return }
+            defaults.set(backendAuthMode.rawValue, forKey: Keys.backendAuthMode)
+        }
+    }
+
+    /// Supabase project URL — public value, e.g. `https://<ref>.supabase.co`.
+    @Published var supabaseURL: String {
+        didSet {
+            guard supabaseURL != oldValue else { return }
+            defaults.set(supabaseURL, forKey: Keys.supabaseURL)
+        }
+    }
+
+    /// Supabase anon key — public by design (RLS protects data server-side).
+    @Published var supabaseAnonKey: String {
+        didSet {
+            guard supabaseAnonKey != oldValue else { return }
+            defaults.set(supabaseAnonKey, forKey: Keys.supabaseAnonKey)
+        }
+    }
+
     // MARK: Direct providers — Gemini
 
     @Published var geminiAPIKey: String {
@@ -222,6 +249,10 @@ final class SettingsStore: ObservableObject {
         static let apiKey = "translator.apiKey"
         // 1st-party backend
         static let firstPartyEndpoint = "translator.firstParty.endpoint"
+        // SaaS cloud auth (M2.1)
+        static let backendAuthMode = "translator.backendAuthMode"
+        static let supabaseURL = "translator.supabase.url"
+        static let supabaseAnonKey = "translator.supabase.anonKey"
         // Gemini
         static let geminiModel = "translator.gemini.model"
         // Ollama
@@ -303,6 +334,12 @@ final class SettingsStore: ObservableObject {
         firstPartyEndpoint = defaults.string(forKey: Keys.firstPartyEndpoint) ?? ""
         firstPartyToken = (try? keychain.read(account: Accounts.firstPartyToken)) ?? ""
 
+        // SaaS cloud auth (M2.1)
+        backendAuthMode = defaults.string(forKey: Keys.backendAuthMode)
+            .flatMap(BackendAuthMode.init(rawValue:)) ?? .selfHostStaticToken
+        supabaseURL = defaults.string(forKey: Keys.supabaseURL) ?? ""
+        supabaseAnonKey = defaults.string(forKey: Keys.supabaseAnonKey) ?? ""
+
         // Direct providers
         geminiAPIKey = (try? keychain.read(account: Accounts.geminiAPIKey)) ?? ""
         geminiModel = defaults.string(forKey: Keys.geminiModel) ?? ProviderDefaults.geminiModel
@@ -364,6 +401,33 @@ final class SettingsStore: ObservableObject {
         } else {
             try? keychain.write(value, account: account)
         }
+    }
+
+    // MARK: SaaS cloud auth helpers (M2.1)
+
+    /// Build a `SupabaseAuthConfig` from the configured project URL + anon
+    /// key. Returns `nil` when either is missing.
+    func supabaseAuthConfig() -> SupabaseAuthConfig? {
+        let url = supabaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = supabaseAnonKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty, !key.isEmpty, let parsed = URL(string: url) else {
+            return nil
+        }
+        return SupabaseAuthConfig(baseURL: parsed, anonKey: key)
+    }
+
+    /// Keychain-backed Supabase session store. Shared source of truth — both
+    /// the Settings sign-in flow and the per-translation provider read it.
+    func makeSupabaseSessionStore() -> KeychainSupabaseSessionStore {
+        KeychainSupabaseSessionStore(keychain: keychain)
+    }
+
+    /// SaaS `/translate` Edge Function endpoint derived from the project URL.
+    var supabaseTranslateEndpoint: String {
+        let base = supabaseURL
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return base.isEmpty ? "" : base + "/functions/v1/translate"
     }
 
     // MARK: Conflict detection
