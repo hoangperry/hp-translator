@@ -129,12 +129,40 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
         let langName = languageDisplayName
         switch register {
         case .formal:
-            return "Translate into \(langName) using formal/polite register appropriate for business or professional contexts. For Japanese, use keigo (敬語). For Korean, use jondaemal (존댓말). For French/Italian/Spanish, use the formal `vous` / `usted` form. For German, use the polite `Sie`. For English, use a polite professional tone. Match conventions of the target language."
+            // Japanese business is the flagship outbound path (VN BrSE →
+            // JP client). Generic "use keigo" is too weak — the common
+            // failure modes are uchi-soto honorific mix-ups and culturally
+            // blunt phrasing. Give the model explicit keigo + cushion-word
+            // + softening guidance.
+            if targetLanguage.lowercased().hasPrefix("ja") {
+                return japaneseBusinessStyleInstruction
+            }
+            return "Translate into \(langName) using formal/polite register appropriate for business or professional contexts. For Korean, use jondaemal (존댓말). For French/Italian/Spanish, use the formal `vous` / `usted` form. For German, use the polite `Sie`. For English, use a polite professional tone. Match conventions of the target language."
         case .casual:
             return "Translate into \(langName) using casual/informal register suitable for chat between friends or peers. Avoid stiff or overly formal vocabulary. Match conventions of the target language for friendly conversation."
         case .neutral:
             return "Translate into natural \(langName), preserving meaning and nuance. Use a neutral register suitable for general reading."
         }
+    }
+
+    /// Keigo-specialized instruction for outbound Japanese business
+    /// communication. Encodes the three honorific registers + cushion-word
+    /// and indirectness conventions that VN bridge engineers most often get
+    /// wrong when writing to a Japanese client.
+    private var japaneseBusinessStyleInstruction: String {
+        """
+        Translate into Japanese business communication using keigo (敬語):
+        - Use 尊敬語 (sonkeigo) for actions of the client or recipient.
+        - Use 謙譲語 (kenjougo) for your own actions and your team's actions, \
+        including when reporting your team's mistakes or delays.
+        - Use 丁寧語 (です・ます) as the baseline polite register throughout.
+        - Before requests, refusals, or disagreements, prepend a cushion word \
+        (クッション言葉) such as 恐れ入りますが / お手数をおかけしますが / 申し訳ございませんが.
+        - Soften blunt negatives: render a direct "no" or "cannot" as an \
+        indirect Japanese form (e.g. 「〜は難しい状況です」「〜しかねます」), never a flat 「できません」.
+        - Keep technical IT terms and product names accurate; do not over-translate them.
+        Return only the Japanese translation.
+        """
     }
 
     // MARK: - Legacy presets (back-compat for existing tests + defaults)
