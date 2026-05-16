@@ -142,6 +142,105 @@ struct BackendProviderIdempotencyTests {
     }
 }
 
+// MARK: - SaaS auth seam
+
+@Suite("BackendProvider accessTokenProvider seam")
+@MainActor
+struct BackendProviderAuthSeamTests {
+    @MainActor
+    private func makeProvider(
+        accessTokenProvider: (@Sendable () async throws -> String?)?
+    ) -> BackendProvider {
+        let suiteName = "translator-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = SettingsStore(
+            defaults: defaults,
+            keychain: KeychainCredentialStore(service: "translator-tests.\(UUID().uuidString)")
+        )
+        settings.endpoint = "http://127.0.0.1:8765/translate"
+        settings.apiKey = "static-self-host-token"
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        return BackendProvider(
+            settings: settings,
+            session: URLSession(configuration: config),
+            idempotencyKeyProvider: { "k" },
+            accessTokenProvider: accessTokenProvider
+        )
+    }
+
+    @Test("accessTokenProvider value becomes the Bearer header")
+    func providerTokenUsed() async throws {
+        MockURLProtocol.reset()
+        MockURLProtocol.stub = { _ in
+            (httpResponse(status: 200), Data(#"{"translation":"ok"}"#.utf8))
+        }
+        let api = makeProvider(accessTokenProvider: { "saas-jwt-xyz" })
+        _ = try await api.translate(makeJob())
+
+        let captured = try #require(MockURLProtocol.capturedRequests.first)
+        #expect(captured.value(forHTTPHeaderField: "Authorization") == "Bearer saas-jwt-xyz")
+    }
+
+    @Test("accessTokenProvider takes precedence over settings.apiKey")
+    func providerOverridesStaticToken() async throws {
+        MockURLProtocol.reset()
+        MockURLProtocol.stub = { _ in
+            (httpResponse(status: 200), Data(#"{"translation":"ok"}"#.utf8))
+        }
+        let api = makeProvider(accessTokenProvider: { "saas-jwt" })
+        _ = try await api.translate(makeJob())
+
+        let captured = try #require(MockURLProtocol.capturedRequests.first)
+        // self-host static token "static-self-host-token" must NOT win
+        #expect(captured.value(forHTTPHeaderField: "Authorization") == "Bearer saas-jwt")
+    }
+
+    @Test("nil accessTokenProvider falls back to static settings.apiKey")
+    func nilProviderFallsBack() async throws {
+        MockURLProtocol.reset()
+        MockURLProtocol.stub = { _ in
+            (httpResponse(status: 200), Data(#"{"translation":"ok"}"#.utf8))
+        }
+        let api = makeProvider(accessTokenProvider: nil)
+        _ = try await api.translate(makeJob())
+
+        let captured = try #require(MockURLProtocol.capturedRequests.first)
+        #expect(captured.value(forHTTPHeaderField: "Authorization") == "Bearer static-self-host-token")
+    }
+
+    @Test("accessTokenProvider throw aborts the translation")
+    func providerThrowAborts() async throws {
+        MockURLProtocol.reset()
+        MockURLProtocol.stub = { _ in
+            (httpResponse(status: 200), Data(#"{"translation":"ok"}"#.utf8))
+        }
+        let api = makeProvider(accessTokenProvider: {
+            throw SupabaseAuthError.refreshFailed(status: 400)
+        })
+        await #expect(throws: SupabaseAuthError.refreshFailed(status: 400)) {
+            _ = try await api.translate(makeJob())
+        }
+        // no request should have been sent
+        #expect(MockURLProtocol.capturedRequests.isEmpty)
+    }
+
+    @Test("empty token from provider sends no Authorization header")
+    func emptyTokenNoHeader() async throws {
+        MockURLProtocol.reset()
+        MockURLProtocol.stub = { _ in
+            (httpResponse(status: 200), Data(#"{"translation":"ok"}"#.utf8))
+        }
+        let api = makeProvider(accessTokenProvider: { nil })
+        _ = try await api.translate(makeJob())
+
+        let captured = try #require(MockURLProtocol.capturedRequests.first)
+        #expect(captured.value(forHTTPHeaderField: "Authorization") == nil)
+    }
+}
+
 // MARK: - RFC 7807 parsing
 
 @Suite("ProblemDetailsParser")

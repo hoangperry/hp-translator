@@ -17,6 +17,7 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
     private let idempotencyKeyProvider: @MainActor () -> String
     private let endpointOverride: (@MainActor () -> String)?
     private let tokenOverride: (@MainActor () -> String)?
+    private let accessTokenProvider: (@Sendable () async throws -> String?)?
 
     /// Default initialiser routes against `settings.endpoint` + `settings.apiKey`
     /// — i.e. the "Custom backend" source.
@@ -24,18 +25,26 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
     /// `endpointOverride` and `tokenOverride` let the 1st-party source feed
     /// in a separate slot so users can switch between custom and 1st-party
     /// modes without re-entering credentials.
+    ///
+    /// `accessTokenProvider` is the SaaS seam: when set, it supplies a
+    /// freshly-refreshed bearer token per request (e.g. wrapping
+    /// `SupabaseAuthService.currentAccessToken()`). It takes precedence over
+    /// the static `tokenOverride` / `settings.apiKey`. Keeping it a closure
+    /// keeps `BackendProvider` decoupled from the auth implementation.
     init(
         settings: SettingsStore,
         session: URLSession = .shared,
         idempotencyKeyProvider: @escaping @MainActor () -> String = { UUID().uuidString },
         endpointOverride: (@MainActor () -> String)? = nil,
-        tokenOverride: (@MainActor () -> String)? = nil
+        tokenOverride: (@MainActor () -> String)? = nil,
+        accessTokenProvider: (@Sendable () async throws -> String?)? = nil
     ) {
         self.settings = settings
         self.session = session
         self.idempotencyKeyProvider = idempotencyKeyProvider
         self.endpointOverride = endpointOverride
         self.tokenOverride = tokenOverride
+        self.accessTokenProvider = accessTokenProvider
     }
 
     private var resolvedEndpoint: String {
@@ -45,7 +54,14 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
         return settings.endpoint
     }
 
-    private var resolvedToken: String {
+    /// Resolve the bearer token for this request. SaaS mode supplies a
+    /// refreshable token via `accessTokenProvider`; self-host mode uses the
+    /// static `tokenOverride` / `settings.apiKey`. A throw here aborts the
+    /// translation — correct, since no auth means no call.
+    private func resolveToken() async throws -> String {
+        if let accessTokenProvider {
+            return (try await accessTokenProvider()) ?? ""
+        }
         if let tokenOverride {
             return tokenOverride()
         }
@@ -71,7 +87,7 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
         // v2: Idempotency-Key per hotkey-press protects against double-paste
         // when the network glitches mid-flight. Server cache TTL ~5min.
         request.setValue(idempotencyKeyProvider(), forHTTPHeaderField: "Idempotency-Key")
-        let token = resolvedToken
+        let token = try await resolveToken()
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -142,7 +158,7 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.setValue(idempotencyKeyProvider(), forHTTPHeaderField: "Idempotency-Key")
-        let token = resolvedToken
+        let token = try await resolveToken()
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
