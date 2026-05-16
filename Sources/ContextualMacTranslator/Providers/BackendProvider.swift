@@ -18,6 +18,7 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
     private let endpointOverride: (@MainActor () -> String)?
     private let tokenOverride: (@MainActor () -> String)?
     private let accessTokenProvider: (@Sendable () async throws -> String?)?
+    private let deviceIdentityProvider: (@MainActor () -> DeviceIdentity)?
 
     /// Default initialiser routes against `settings.endpoint` + `settings.apiKey`
     /// — i.e. the "Custom backend" source.
@@ -31,13 +32,18 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
     /// `SupabaseAuthService.currentAccessToken()`). It takes precedence over
     /// the static `tokenOverride` / `settings.apiKey`. Keeping it a closure
     /// keeps `BackendProvider` decoupled from the auth implementation.
+    ///
+    /// `deviceIdentityProvider` is the M2.1-c seam: when set, every request
+    /// carries `X-Device-*` headers so the SaaS backend can register the
+    /// device and enforce the plan device cap. Unset for self-host.
     init(
         settings: SettingsStore,
         session: URLSession = .shared,
         idempotencyKeyProvider: @escaping @MainActor () -> String = { UUID().uuidString },
         endpointOverride: (@MainActor () -> String)? = nil,
         tokenOverride: (@MainActor () -> String)? = nil,
-        accessTokenProvider: (@Sendable () async throws -> String?)? = nil
+        accessTokenProvider: (@Sendable () async throws -> String?)? = nil,
+        deviceIdentityProvider: (@MainActor () -> DeviceIdentity)? = nil
     ) {
         self.settings = settings
         self.session = session
@@ -45,6 +51,15 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
         self.endpointOverride = endpointOverride
         self.tokenOverride = tokenOverride
         self.accessTokenProvider = accessTokenProvider
+        self.deviceIdentityProvider = deviceIdentityProvider
+    }
+
+    /// Apply SaaS device-identity headers when the M2.1-c seam is wired.
+    private func applyDeviceHeaders(to request: inout URLRequest) {
+        guard let deviceIdentityProvider else { return }
+        for (field, value) in deviceIdentityProvider().requestHeaders {
+            request.setValue(value, forHTTPHeaderField: field)
+        }
     }
 
     private var resolvedEndpoint: String {
@@ -91,6 +106,7 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
+        applyDeviceHeaders(to: &request)
 
         let body = BackendRequestBody(
             text: job.text,
@@ -162,6 +178,7 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
         if !token.isEmpty {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
+        applyDeviceHeaders(to: &request)
 
         let body = BackendRequestBody(
             text: job.text,

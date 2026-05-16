@@ -139,7 +139,11 @@ final class TranslationProviderFactory {
                     session: session,
                     idempotencyKeyProvider: idempotencyKeyProvider,
                     endpointOverride: { endpoint },
-                    accessTokenProvider: { try await authService.currentAccessToken() }
+                    accessTokenProvider: { try await authService.currentAccessToken() },
+                    deviceIdentityProvider: { [weak settings] in
+                        settings?.deviceIdentity()
+                            ?? DeviceIdentity(deviceID: "", deviceName: "Mac", osVersion: "")
+                    }
                 )
             }
             return BackendProvider(

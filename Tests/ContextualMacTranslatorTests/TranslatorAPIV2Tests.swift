@@ -241,6 +241,66 @@ struct BackendProviderAuthSeamTests {
     }
 }
 
+// MARK: - SaaS device-identity seam (M2.1-c)
+
+@Suite("BackendProvider deviceIdentityProvider seam")
+@MainActor
+struct BackendProviderDeviceSeamTests {
+    @MainActor
+    private func makeProvider(
+        deviceIdentityProvider: (@MainActor () -> DeviceIdentity)?
+    ) -> BackendProvider {
+        let suiteName = "translator-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let settings = SettingsStore(
+            defaults: defaults,
+            keychain: KeychainCredentialStore(service: "translator-tests.\(UUID().uuidString)")
+        )
+        settings.endpoint = "http://127.0.0.1:8765/translate"
+
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        return BackendProvider(
+            settings: settings,
+            session: URLSession(configuration: config),
+            idempotencyKeyProvider: { "k" },
+            deviceIdentityProvider: deviceIdentityProvider
+        )
+    }
+
+    @Test("device identity becomes X-Device-* headers")
+    func deviceHeadersSent() async throws {
+        MockURLProtocol.reset()
+        MockURLProtocol.stub = { _ in
+            (httpResponse(status: 200), Data(#"{"translation":"ok"}"#.utf8))
+        }
+        let api = makeProvider(deviceIdentityProvider: {
+            DeviceIdentity(deviceID: "dev-xyz", deviceName: "Test Mac", osVersion: "macOS 14")
+        })
+        _ = try await api.translate(makeJob())
+
+        let captured = try #require(MockURLProtocol.capturedRequests.first)
+        #expect(captured.value(forHTTPHeaderField: "X-Device-Id") == "dev-xyz")
+        #expect(captured.value(forHTTPHeaderField: "X-Device-Name") == "Test Mac")
+        #expect(captured.value(forHTTPHeaderField: "X-Device-OS") == "macOS 14")
+    }
+
+    @Test("nil deviceIdentityProvider sends no X-Device-* headers (self-host)")
+    func noDeviceHeadersWhenUnset() async throws {
+        MockURLProtocol.reset()
+        MockURLProtocol.stub = { _ in
+            (httpResponse(status: 200), Data(#"{"translation":"ok"}"#.utf8))
+        }
+        let api = makeProvider(deviceIdentityProvider: nil)
+        _ = try await api.translate(makeJob())
+
+        let captured = try #require(MockURLProtocol.capturedRequests.first)
+        #expect(captured.value(forHTTPHeaderField: "X-Device-Id") == nil)
+        #expect(captured.value(forHTTPHeaderField: "X-Device-Name") == nil)
+    }
+}
+
 // MARK: - RFC 7807 parsing
 
 @Suite("ProblemDetailsParser")

@@ -287,6 +287,8 @@ final class SettingsStore: ObservableObject {
         static let libreTranslateAPIKey = "libretranslate-api-key"
         // Shared
         static let glossary = "default-glossary"
+        // SaaS device identity (M2.1-c)
+        static let deviceID = "saas-device-id"
     }
 
     /// Default endpoint points to the reference backend running locally so
@@ -428,6 +430,25 @@ final class SettingsStore: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         return base.isEmpty ? "" : base + "/functions/v1/translate"
+    }
+
+    /// Stable device identity for SaaS device registration (M2.1-c). The
+    /// device id is generated once and persisted in the Keychain; later
+    /// calls return the same id.
+    func deviceIdentity() -> DeviceIdentity {
+        let stored = (try? keychain.read(account: Accounts.deviceID)) ?? nil
+        let id: String
+        if let stored, !stored.isEmpty {
+            id = stored
+        } else {
+            id = UUID().uuidString
+            try? keychain.write(id, account: Accounts.deviceID)
+        }
+        return DeviceIdentity(
+            deviceID: id,
+            deviceName: Host.current().localizedName ?? "Mac",
+            osVersion: ProcessInfo.processInfo.operatingSystemVersionString
+        )
     }
 
     // MARK: Conflict detection
