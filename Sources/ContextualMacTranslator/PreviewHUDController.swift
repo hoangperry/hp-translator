@@ -273,7 +273,7 @@ struct PreviewHUDView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+                .strokeBorder(.separator, lineWidth: 1)
         )
         .onChange(of: model.isEditing) { isEditing in
             if isEditing {

@@ -163,7 +163,7 @@ struct HUDView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+                .strokeBorder(.separator, lineWidth: 1)
         )
     }
 

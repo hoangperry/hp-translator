@@ -30,33 +30,43 @@ struct SettingsView: View {
     @State private var outboundRecorderID: UUID?
     @StateObject private var cloudAuth = SupabaseAuthViewModel(settings: .shared)
 
+    /// Grouped `Form` — gives the native macOS System-Settings look (inset
+    /// grouped cards) instead of a flat divider-separated scroll.
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                languagesSection
-                Divider()
-                sourcePicker
-                Divider()
-                sourceForm
-                Divider()
-                glossarySection
-                Divider()
-                permissionsSection
-                Divider()
-                advancedSection
-            }
-            .padding(22)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        Form {
+            languagesSection
+            translationSourceSection
+            glossarySection
+            permissionsSection
+            advancedSection
         }
+        .formStyle(.grouped)
         .frame(minWidth: 620, minHeight: 700)
+        .sheet(isPresented: $inboundRecorderShown) {
+            HotkeyRecorderSheet(
+                hotkey: $settings.inboundBinding.hotkey,
+                isPresented: $inboundRecorderShown,
+                ownerBindingID: nil
+            )
+        }
+        .sheet(item: $outboundRecorderID) { bindingID in
+            if let index = settings.outboundBindings.firstIndex(where: { $0.id == bindingID }) {
+                HotkeyRecorderSheet(
+                    hotkey: $settings.outboundBindings[index].hotkey,
+                    isPresented: Binding(
+                        get: { outboundRecorderID != nil },
+                        set: { if !$0 { outboundRecorderID = nil } }
+                    ),
+                    ownerBindingID: bindingID
+                )
+            }
+        }
     }
 
     // MARK: - Languages (v0.3)
 
     private var languagesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Languages")
-                .font(.headline)
+        Section("Languages") {
             VStack(alignment: .leading, spacing: 4) {
                 Text("My language (incoming translations target this)")
                     .font(.caption)
@@ -105,25 +115,6 @@ struct SettingsView: View {
                 }
             }
         }
-        .sheet(isPresented: $inboundRecorderShown) {
-            HotkeyRecorderSheet(
-                hotkey: $settings.inboundBinding.hotkey,
-                isPresented: $inboundRecorderShown,
-                ownerBindingID: nil
-            )
-        }
-        .sheet(item: $outboundRecorderID) { bindingID in
-            if let index = settings.outboundBindings.firstIndex(where: { $0.id == bindingID }) {
-                HotkeyRecorderSheet(
-                    hotkey: $settings.outboundBindings[index].hotkey,
-                    isPresented: Binding(
-                        get: { outboundRecorderID != nil },
-                        set: { if !$0 { outboundRecorderID = nil } }
-                    ),
-                    ownerBindingID: bindingID
-                )
-            }
-        }
     }
 
     private func addOutboundBinding() {
@@ -158,12 +149,10 @@ struct SettingsView: View {
         settings.outboundBindings.removeAll { $0.id == binding.id }
     }
 
-    // MARK: - Sections
+    // MARK: - Translation source
 
-    private var sourcePicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Translation Source")
-                .font(.headline)
+    private var translationSourceSection: some View {
+        Section("Translation Source") {
             Picker("Translation Source", selection: $settings.translationSource) {
                 ForEach(TranslationSource.allCases) { source in
                     Text(source.displayName).tag(source)
@@ -175,6 +164,7 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            sourceForm
         }
     }
 
@@ -194,7 +184,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Direct provider")
-                    .font(.headline)
+                    .font(.subheadline.bold())
                 Spacer()
                 Picker("Provider", selection: $settings.directProvider) {
                     ForEach(DirectProviderKind.allCases) { kind in
@@ -260,7 +250,7 @@ struct SettingsView: View {
     private var customBackendForm: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Custom backend")
-                .font(.headline)
+                .font(.subheadline.bold())
             LabeledTextField(label: "Endpoint", text: $settings.endpoint, placeholder: "https://your-api.example.com/translate")
             if let warning = EndpointPolicy.warning(for: settings.endpoint) {
                 Label(warning, systemImage: "exclamationmark.triangle.fill")
@@ -274,7 +264,7 @@ struct SettingsView: View {
     private var firstPartyForm: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Contextual MT backend")
-                .font(.headline)
+                .font(.subheadline.bold())
             Picker("Authentication", selection: $settings.backendAuthMode) {
                 Text("Self-hosted · issued token")
                     .tag(BackendAuthMode.selfHostStaticToken)
@@ -382,10 +372,10 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Glossary / permissions / advanced
+
     private var glossarySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Glossary")
-                .font(.headline)
+        Section("Glossary") {
             Text("Lines like `term = preferred translation` — applied across all LLM-based providers.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -400,9 +390,7 @@ struct SettingsView: View {
     }
 
     private var permissionsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Permissions")
-                .font(.headline)
+        Section("Permissions") {
             PermissionRow(
                 title: "Accessibility",
                 granted: permissionManager.accessibilityGranted,
@@ -425,9 +413,7 @@ struct SettingsView: View {
     }
 
     private var advancedSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Advanced")
-                .font(.headline)
+        Section("Advanced") {
             Toggle("Enable focus guard before paste/send", isOn: $settings.focusGuardEnabled)
         }
     }
@@ -568,6 +554,6 @@ private struct OutboundBindingRow: View {
 
 // MARK: - UUID `Identifiable` for `.sheet(item:)` binding
 
-extension UUID: Identifiable {
+extension UUID: @retroactive Identifiable {
     public var id: UUID { self }
 }
