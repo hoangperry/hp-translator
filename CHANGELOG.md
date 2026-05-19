@@ -8,37 +8,19 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
 
 ## [Unreleased]
 
-### Planned for [0.4.0] — M2.0 SaaS Foundation (target 2026-07)
+### Planned — distribution hardening
 
-**Major: Apple Developer ID signing + notarization**
+- **Apple Developer ID signing + notarization** — DMG ký với Developer ID
+  Application certificate, hardened runtime, timestamped; notarized qua
+  `xcrun notarytool` + stapled nên end-users không còn thấy cảnh báo
+  "unidentified developer". Xem `../docs/APPLE-DEVELOPER-SIGNING.md`.
+- **Bundle ID migration** *(breaking cho Keychain entries cũ)* —
+  `app.lookerlab.translator` → `dev.hoangtruong.translator`. App hiện banner
+  trên first launch yêu cầu nhập lại credentials.
+- **Sparkle auto-update** — Sparkle 2 với EdDSA-signed appcasts hosted tại
+  static URL; daily check, opt-out trong onboarding.
 
-- DMG signed với Developer ID Application certificate, hardened runtime, timestamped.
-- Notarized via `xcrun notarytool` + stapled. End-users no longer see "unidentified developer" warning on first launch.
-- See `../docs/APPLE-DEVELOPER-SIGNING.md` cho full ops runbook.
-
-**Bundle ID migration** *(breaking for existing Keychain entries)*
-
-- Bundle ID changes from `app.lookerlab.translator` → `dev.hoangtruong.translator`.
-- Existing API keys stored in Keychain under old bundle ID **won't carry over**. App shows in-app banner trên first launch của v0.4.0+ asking user to re-enter credentials.
-- Reason: align with Apple Dev individual enrollment legal name; bundle ID `app.lookerlab.*` doesn't match developer identity.
-
-**Sparkle auto-update**
-
-- App tích hợp Sparkle 2 với EdDSA-signed appcasts hosted at static URL (no auth required per FR-DIST-004).
-- Daily check, user can opt out during first-launch onboarding.
-
-**SaaS sign-in (opt-in)**
-
-- Settings → **Backend** picker: "Contextual MT Cloud" (default, opens magic-link flow) | "Self-hosted / Custom backend" (existing URL + token field — unchanged behavior).
-- Cloud path uses email magic link or Google OAuth (`ASWebAuthenticationSession`).
-- JWT access token (15min) + refresh token (30 day, single-use rotation) stored in Keychain.
-- ed25519 device keypair generated on first launch; public key registered with server for FR-AUTH-005 device limit enforcement.
-
-**Permission walkthrough**
-
-- First-launch onboarding sheet với screenshots + plain-English purpose explainer cho AX + Input Monitoring permission requests. Captures denial → in-app explainer + re-request flow.
-
-### Planned for [0.4.1] — M2.1 Translation + Quota (target 2026-08)
+### Planned for [0.4.1] — M2.1 quota + cache (target 2026-08)
 
 - Token-based quota enforcement (3K Solo / 15K Pro per FR-QUOTA-001) with HUD upgrade CTA at limit.
 - Per-user encrypted server cache (libsodium per-user-key derivation, FR-CACHE-001).
@@ -48,6 +30,42 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
 - BYOK mode for Pro users (API keys stay in macOS Keychain, never sent to our server).
 
 > See [`../docs/PRD-saas-m2.md`](../docs/PRD-saas-m2.md) for full M2 specification and the adversarial review findings that shaped it.
+
+## [0.4.0] — 2026-05-19
+
+First step onto the SaaS path: the app can now sign in to Contextual MT
+Cloud. Self-hosted và custom-backend modes giữ nguyên hành vi.
+
+### Added
+
+- **Contextual MT Cloud sign-in (opt-in)** — Settings → Translation Source →
+  "Contextual MT backend" thêm chế độ "Contextual MT Cloud · email sign-in"
+  cạnh chế độ self-hosted token. Sign-in dùng Supabase email OTP (mã 6 số,
+  không mật khẩu). (M2.1-a)
+- **Device registration** — mỗi Mac sinh device identity và gửi `X-Device-*`
+  headers theo request cloud để backend enforce giới hạn thiết bị theo
+  plan. (M2.1-c)
+- **Keigo-specialized style instruction** — outbound business Japanese dùng
+  instruction tinh chỉnh riêng cho 敬語, output keigo ổn định hơn.
+- **IT glossary starter pack** — preset thuật ngữ IT EN/VI → JP cho bridge
+  engineer, sẵn sàng dán vào glossary.
+
+### Changed
+
+- **Settings window** dựng lại bằng grouped `Form` (`.formStyle(.grouped)`)
+  — giao diện đúng chuẩn System Settings macOS.
+- Viền HUD và preview panel chuyển sang màu adaptive `.separator` thay vì
+  stroke trắng hardcode (sửa lỗi viền vô hình ở light mode).
+
+### Notes
+
+- Build này **ad-hoc signed**, chưa Developer ID signed/notarized. Việc ký
+  Developer ID + notarization, migration bundle ID, và Sparkle auto-update
+  vẫn nằm trong kế hoạch cho release sau.
+
+### Tests
+
+- App: **190 Swift / 45 suites** GREEN.
 
 ## [0.3.1] — 2026-05-11
 
@@ -206,7 +224,8 @@ F-5 (focus guard), F-9 (glossary in Keychain).
 Early alpha iterations: bundle ID rename, sign mac app, installer/DMG packaging.
 Chi tiết trong `git log v0.1.0..v0.1.4`.
 
-[Unreleased]: https://github.com/hoangperry/hp-translator/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/hoangperry/hp-translator/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/hoangperry/hp-translator/releases/tag/v0.4.0
 [0.3.1]: https://github.com/hoangperry/hp-translator/releases/tag/v0.3.1
 [0.3.0]: https://github.com/hoangperry/hp-translator/releases/tag/v0.3.0
 [0.2.0]: https://github.com/hoangperry/hp-translator/releases/tag/v0.2.0
