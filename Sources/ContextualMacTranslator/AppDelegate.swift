@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var permissionManager = PermissionManager()
     private lazy var hudController = HUDController()
     private lazy var previewHUDController = PreviewHUDController()
+    private lazy var updaterManager = UpdaterManager()
     private lazy var providerFactory = TranslationProviderFactory(settings: .shared)
     private lazy var workflow = TranslationWorkflow(
         providerFactory: { [providerFactory] in providerFactory.make() },
@@ -27,6 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // main menu (Edit submenu for Cmd-C/V/X responder chain in text
         // fields) and the post-launch flow here.
         buildMainMenu()
+        // Touch the updater so its constructor runs and Sparkle's
+        // background scheduler starts. Initial check is deferred by
+        // Sparkle's own logic (it won't fire immediately on first launch).
+        _ = updaterManager
         if SettingsStore.shared.firstRunCompleted {
             registerHotKeys()
         } else {
@@ -188,6 +193,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func openOnboarding() {
         showOnboarding()
+    }
+
+    @objc func checkForUpdates() {
+        updaterManager.checkForUpdates()
     }
 
     @objc func quit() {

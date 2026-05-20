@@ -13,9 +13,19 @@ let package = Package(
             targets: ["ContextualMacTranslator"]
         )
     ],
+    dependencies: [
+        // Sparkle 2 — auto-update framework. SPM binary target ships
+        // Sparkle.framework + XPC services as an XCFramework. The
+        // `package_app.sh` script copies the framework + XPCServices
+        // into `.app/Contents/Frameworks/` and code-signs them.
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.2")
+    ],
     targets: [
         .executableTarget(
             name: "ContextualMacTranslator",
+            dependencies: [
+                .product(name: "Sparkle", package: "Sparkle")
+            ],
             path: "Sources/ContextualMacTranslator",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),

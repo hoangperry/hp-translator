@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"
+     xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Contextual Mac Translator</title>
+    <link>https://hoangperry.github.io/hp-translator/appcast.xml</link>
+    <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
+    <language>en</language>
+    <item>
+      <title>v0.6.0</title>
+      <pubDate>Wed, 20 May 2026 23:03:18 +0700</pubDate>
+      <description><![CDATA[
+        <h2>OTA auto-updates with Sparkle 2</h2>
+        <p>This is the first release with Sparkle integration. From now on, the app checks for updates automatically — no more manual DMG downloads.</p>
+        <ul>
+          <li>Daily background check for new releases</li>
+          <li>"Check for Updates…" in the menu bar</li>
+          <li>EdDSA-signed update bundles (tamper-proof)</li>
+          <li>Apple-notarized DMG + update zip</li>
+        </ul>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.6.0">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.6.0/Contextual-Mac-Translator-v0.6.0-macos-arm64.zip"
+        sparkle:version="14"
+        sparkle:shortVersionString="0.6.0"
+        sparkle:edSignature="qzfvSpj/u6xMSoO34uzuxUfRtNhEsZNjKRo0dXY5S60i1K7/dDENWEbzABx3KwAL6q1Cu5fqCs96N5jD8zQ+Ag==" length="1755621"
+        type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>

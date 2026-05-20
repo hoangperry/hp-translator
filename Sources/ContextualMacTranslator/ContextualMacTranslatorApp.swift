@@ -61,6 +61,12 @@ private struct AppMenuContent: View {
 
         Divider()
 
+        Button("Check for Updates…") {
+            appDelegate.checkForUpdates()
+        }
+
+        Divider()
+
         Button("Quit Contextual Mac Translator") {
             NSApplication.shared.terminate(nil)
         }

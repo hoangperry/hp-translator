@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contextual Mac Translator — Updates</title>
+  <style>
+    :root {
+      --bg: oklch(98% 0.003 90);
+      --text: oklch(20% 0.012 90);
+      --muted: oklch(50% 0.008 90);
+      --accent: oklch(48% 0.18 25);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: oklch(14% 0.005 90);
+        --text: oklch(94% 0.006 90);
+        --muted: oklch(65% 0.008 90);
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      max-width: 640px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+    }
+    h1 {
+      font-family: "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho", serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      letter-spacing: -0.02em;
+      margin: 0 0 0.5rem;
+    }
+    .stamp {
+      display: inline-block;
+      background: var(--accent);
+      color: oklch(96% 0.01 80);
+      font-family: "Hiragino Mincho ProN", serif;
+      font-size: 2.4rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 14%;
+      transform: rotate(-3deg);
+      margin-bottom: 1rem;
+      line-height: 1;
+    }
+    p { color: var(--muted); }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+    a:hover { opacity: 0.7; }
+    code {
+      background: color-mix(in oklab, var(--text) 8%, transparent);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-family: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.9em;
+    }
+  </style>
+</head>
+<body>
+  <div class="stamp">訳</div>
+  <h1>Contextual Mac Translator</h1>
+  <p>This page hosts the Sparkle auto-update feed for Contextual Mac Translator.</p>
+  <p>The app fetches <a href="./appcast.xml"><code>appcast.xml</code></a> in the background and prompts to install new versions automatically. No need to re-download the DMG.</p>
+  <p>Download the latest release directly from <a href="https://github.com/hoangperry/hp-translator/releases/latest">GitHub Releases</a>.</p>
+</body>
+</html>
