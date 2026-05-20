@@ -176,9 +176,13 @@ struct HUDView: View {
         case .result:
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(.green)
+                .symbolRenderingMode(.hierarchical)
+                .symbolEffect(.bounce, value: state.message)
         case .error:
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
+                .symbolRenderingMode(.hierarchical)
+                .symbolEffect(.pulse, value: state.message)
         }
     }
 }

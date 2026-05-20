@@ -46,6 +46,7 @@ private struct OnboardingView: View {
 
             if !permissionManager.accessibilityGranted {
                 Label("If Accessibility is already enabled in System Settings but this screen is not green yet, continue anyway and restart the app once. macOS can lag for unsigned local builds.", systemImage: "info.circle")
+                    .symbolRenderingMode(.hierarchical)
                     .font(.callout)
                     .foregroundStyle(.blue)
                     .fixedSize(horizontal: false, vertical: true)
@@ -53,6 +54,7 @@ private struct OnboardingView: View {
 
             if !isInApplicationsFolder {
                 Label("Move the app to /Applications before daily use so macOS keeps permission grants stable.", systemImage: "exclamationmark.triangle.fill")
+                    .symbolRenderingMode(.hierarchical)
                     .font(.callout)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
@@ -81,10 +83,12 @@ private struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Label("If the app is not listed, open the privacy pane, press +, then choose /Applications/Contextual Mac Translator.app.", systemImage: "plus.app")
+                    .symbolRenderingMode(.hierarchical)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Label("After granting Accessibility, quit and reopen the app if hotkeys do not respond immediately.", systemImage: "arrow.clockwise")
+                    .symbolRenderingMode(.hierarchical)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -96,11 +100,14 @@ private struct OnboardingView: View {
                 Button("Refresh") {
                     permissionManager.refresh()
                 }
+                .controlSize(.large)
                 Spacer()
                 Button(permissionManager.accessibilityGranted ? "Continue" : "Continue Anyway") {
                     onContinue()
                 }
                 .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             }
         }
         .padding(22)
@@ -145,6 +152,8 @@ private struct OnboardingPermissionRow: View {
             HStack(spacing: 10) {
                 Image(systemName: granted ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(granted ? .green : .secondary)
+                    .symbolRenderingMode(.hierarchical)
+                    .symbolEffect(.bounce, value: granted)
                 Text(title)
                     .font(.headline)
                 Text(badge)

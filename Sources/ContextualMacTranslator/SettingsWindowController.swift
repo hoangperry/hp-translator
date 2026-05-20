@@ -477,6 +477,8 @@ private struct PermissionRow: View {
         HStack {
             Image(systemName: granted ? "checkmark.circle.fill" : "xmark.circle.fill")
                 .foregroundStyle(granted ? .green : .red)
+                .symbolRenderingMode(.hierarchical)
+                .symbolEffect(.bounce, value: granted)
             Text(title)
             Spacer()
             Button(granted ? "Granted" : "Request", action: action)

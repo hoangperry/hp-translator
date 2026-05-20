@@ -220,8 +220,10 @@ struct PreviewHUDView: View {
                     model.enterEditMode()
                 } label: {
                     Image(systemName: "pencil")
+                        .symbolRenderingMode(.hierarchical)
                 }
                 .buttonStyle(.borderless)
+                .controlSize(.large)
                 .help("Edit translation")
             }
 
@@ -277,7 +279,7 @@ struct PreviewHUDView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(.separator, lineWidth: 1)
         )
-        .onChange(of: model.isEditing) { isEditing in
+        .onChange(of: model.isEditing) { _, isEditing in
             if isEditing {
                 Task { @MainActor in
                     editorFocused = true
