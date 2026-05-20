@@ -5,6 +5,14 @@ CONFIG="${1:-debug}"
 APP_NAME="Contextual Mac Translator"
 BINARY_NAME="ContextualMacTranslator"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ENTITLEMENTS="$ROOT_DIR/scripts/entitlements.plist"
+
+# Optional Developer ID signing. Export CODESIGN_IDENTITY to enable:
+#   export CODESIGN_IDENTITY="Developer ID Application: <Name> (<TEAMID>)"
+# When unset, the script falls back to ad-hoc signing (no Apple cert
+# required; Gatekeeper will then prompt the user to right-click -> Open
+# on first launch).
+CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
 
 cd "$ROOT_DIR"
 mkdir -p "$ROOT_DIR/.build/module-cache" "$ROOT_DIR/.build/cache" "$ROOT_DIR/.build/swiftpm"
@@ -58,7 +66,17 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-codesign --force --deep --sign - "$APP_DIR"
-codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+if [ -n "$CODESIGN_IDENTITY" ]; then
+  echo "Signing with Developer ID: $CODESIGN_IDENTITY"
+  codesign --force --sign "$CODESIGN_IDENTITY" \
+    --options runtime \
+    --timestamp \
+    --entitlements "$ENTITLEMENTS" \
+    "$APP_DIR"
+else
+  echo "Signing ad-hoc (set CODESIGN_IDENTITY to use Developer ID)"
+  codesign --force --deep --sign - "$APP_DIR"
+fi
+codesign --verify --strict --verbose=2 "$APP_DIR"
 
 echo "$APP_DIR"

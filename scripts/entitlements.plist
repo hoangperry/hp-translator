@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Hardened runtime is enabled via `codesign --options runtime`, not here.
+    This file only relaxes specific hardened-runtime checks where the app
+    actually needs it.
+
+    `com.apple.security.cs.disable-library-validation`: the SwiftPM-built
+    binary links against Swift dynamic libraries (libswift_Concurrency,
+    libswift_StringProcessing, …). On macOS 12+ these typically resolve to
+    system-signed copies in /usr/lib/swift/, but during toolchain
+    transitions some Swift libs may load from the Xcode toolchain bundle
+    instead. Disabling library validation lets both paths work without
+    notarization or runtime failures.
+
+    NOT relaxed (intentionally): JIT, allow-unsigned-executable-memory,
+    disable-executable-page-protection, debugger entitlement, AppleEvents.
+    The app does not need any of those.
+  -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>
