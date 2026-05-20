@@ -67,7 +67,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
   <key>CFBundleVersion</key>
   <string>10</string>
   <key>LSMinimumSystemVersion</key>
-  <string>13.0</string>
+  <string>14.0</string>
   <key>LSUIElement</key>
   <true/>
   <key>NSAppleEventsUsageDescription</key>
