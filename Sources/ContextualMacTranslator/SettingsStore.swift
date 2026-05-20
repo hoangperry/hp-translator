@@ -1,8 +1,10 @@
 import Foundation
+import Observation
 import OSLog
 
 @MainActor
-final class SettingsStore: ObservableObject {
+@Observable
+final class SettingsStore {
     static let shared = SettingsStore()
 
     /// Bundle-scoped service identifier used for Keychain entries.
@@ -11,14 +13,14 @@ final class SettingsStore: ObservableObject {
 
     // MARK: Source picker (Phase 3e)
 
-    @Published var translationSource: TranslationSource {
+    var translationSource: TranslationSource {
         didSet {
             guard translationSource != oldValue else { return }
             defaults.set(translationSource.rawValue, forKey: Keys.translationSource)
         }
     }
 
-    @Published var directProvider: DirectProviderKind {
+    var directProvider: DirectProviderKind {
         didSet {
             guard directProvider != oldValue else { return }
             defaults.set(directProvider.rawValue, forKey: Keys.directProvider)
@@ -27,14 +29,14 @@ final class SettingsStore: ObservableObject {
 
     // MARK: Custom backend (legacy `endpoint` + `apiKey`)
 
-    @Published var endpoint: String {
+    var endpoint: String {
         didSet {
             guard endpoint != oldValue else { return }
             defaults.set(endpoint, forKey: Keys.endpoint)
         }
     }
 
-    @Published var apiKey: String {
+    var apiKey: String {
         didSet {
             guard apiKey != oldValue else { return }
             writeKeychain(apiKey, account: Accounts.apiKey)
@@ -43,14 +45,14 @@ final class SettingsStore: ObservableObject {
 
     // MARK: 1st-party backend (separate slot so user can switch without re-entering)
 
-    @Published var firstPartyEndpoint: String {
+    var firstPartyEndpoint: String {
         didSet {
             guard firstPartyEndpoint != oldValue else { return }
             defaults.set(firstPartyEndpoint, forKey: Keys.firstPartyEndpoint)
         }
     }
 
-    @Published var firstPartyToken: String {
+    var firstPartyToken: String {
         didSet {
             guard firstPartyToken != oldValue else { return }
             writeKeychain(firstPartyToken, account: Accounts.firstPartyToken)
@@ -61,7 +63,7 @@ final class SettingsStore: ObservableObject {
 
     /// How the 1st-party backend authenticates: a static issued token
     /// (self-host) or a refreshable Supabase email-OTP session (cloud).
-    @Published var backendAuthMode: BackendAuthMode {
+    var backendAuthMode: BackendAuthMode {
         didSet {
             guard backendAuthMode != oldValue else { return }
             defaults.set(backendAuthMode.rawValue, forKey: Keys.backendAuthMode)
@@ -69,7 +71,7 @@ final class SettingsStore: ObservableObject {
     }
 
     /// Supabase project URL — public value, e.g. `https://<ref>.supabase.co`.
-    @Published var supabaseURL: String {
+    var supabaseURL: String {
         didSet {
             guard supabaseURL != oldValue else { return }
             defaults.set(supabaseURL, forKey: Keys.supabaseURL)
@@ -77,7 +79,7 @@ final class SettingsStore: ObservableObject {
     }
 
     /// Supabase anon key — public by design (RLS protects data server-side).
-    @Published var supabaseAnonKey: String {
+    var supabaseAnonKey: String {
         didSet {
             guard supabaseAnonKey != oldValue else { return }
             defaults.set(supabaseAnonKey, forKey: Keys.supabaseAnonKey)
@@ -86,14 +88,14 @@ final class SettingsStore: ObservableObject {
 
     // MARK: Direct providers — Gemini
 
-    @Published var geminiAPIKey: String {
+    var geminiAPIKey: String {
         didSet {
             guard geminiAPIKey != oldValue else { return }
             writeKeychain(geminiAPIKey, account: Accounts.geminiAPIKey)
         }
     }
 
-    @Published var geminiModel: String {
+    var geminiModel: String {
         didSet {
             guard geminiModel != oldValue else { return }
             defaults.set(geminiModel, forKey: Keys.geminiModel)
@@ -102,14 +104,14 @@ final class SettingsStore: ObservableObject {
 
     // MARK: Direct providers — Ollama
 
-    @Published var ollamaBaseURL: String {
+    var ollamaBaseURL: String {
         didSet {
             guard ollamaBaseURL != oldValue else { return }
             defaults.set(ollamaBaseURL, forKey: Keys.ollamaBaseURL)
         }
     }
 
-    @Published var ollamaModel: String {
+    var ollamaModel: String {
         didSet {
             guard ollamaModel != oldValue else { return }
             defaults.set(ollamaModel, forKey: Keys.ollamaModel)
@@ -118,7 +120,7 @@ final class SettingsStore: ObservableObject {
 
     // MARK: Direct providers — Google Translate
 
-    @Published var googleTranslateAPIKey: String {
+    var googleTranslateAPIKey: String {
         didSet {
             guard googleTranslateAPIKey != oldValue else { return }
             writeKeychain(googleTranslateAPIKey, account: Accounts.googleTranslateAPIKey)
@@ -127,21 +129,21 @@ final class SettingsStore: ObservableObject {
 
     // MARK: Direct providers — OpenAI-compatible
 
-    @Published var openAICompatBaseURL: String {
+    var openAICompatBaseURL: String {
         didSet {
             guard openAICompatBaseURL != oldValue else { return }
             defaults.set(openAICompatBaseURL, forKey: Keys.openAICompatBaseURL)
         }
     }
 
-    @Published var openAICompatAPIKey: String {
+    var openAICompatAPIKey: String {
         didSet {
             guard openAICompatAPIKey != oldValue else { return }
             writeKeychain(openAICompatAPIKey, account: Accounts.openAICompatAPIKey)
         }
     }
 
-    @Published var openAICompatModel: String {
+    var openAICompatModel: String {
         didSet {
             guard openAICompatModel != oldValue else { return }
             defaults.set(openAICompatModel, forKey: Keys.openAICompatModel)
@@ -150,21 +152,21 @@ final class SettingsStore: ObservableObject {
 
     // MARK: Shared / advanced
 
-    @Published var glossary: String {
+    var glossary: String {
         didSet {
             guard glossary != oldValue else { return }
             writeKeychain(glossary, account: Accounts.glossary)
         }
     }
 
-    @Published var focusGuardEnabled: Bool {
+    var focusGuardEnabled: Bool {
         didSet {
             guard focusGuardEnabled != oldValue else { return }
             defaults.set(focusGuardEnabled, forKey: Keys.focusGuardEnabled)
         }
     }
 
-    @Published var firstRunCompleted: Bool {
+    var firstRunCompleted: Bool {
         didSet {
             guard firstRunCompleted != oldValue else { return }
             defaults.set(firstRunCompleted, forKey: Keys.firstRunCompleted)
@@ -175,7 +177,7 @@ final class SettingsStore: ObservableObject {
 
     /// User's primary readable language (BCP47). Inbound translations
     /// always target this; outbound translations use this as the source.
-    @Published var primaryLanguage: String {
+    var primaryLanguage: String {
         didSet {
             guard primaryLanguage != oldValue else { return }
             defaults.set(primaryLanguage, forKey: Keys.primaryLanguage)
@@ -183,7 +185,7 @@ final class SettingsStore: ObservableObject {
     }
 
     /// Hotkey for inbound translation (selection → primary language).
-    @Published var inboundBinding: InboundBinding {
+    var inboundBinding: InboundBinding {
         didSet {
             guard inboundBinding != oldValue else { return }
             persist(inboundBinding, forKey: Keys.inboundBinding)
@@ -193,7 +195,7 @@ final class SettingsStore: ObservableObject {
     /// Outbound translation bindings. Each entry = (target language +
     /// register + hotkey + optional custom style instruction). Defaults
     /// reproduce v0.2 keigo + casual hotkeys for back-compat.
-    @Published var outboundBindings: [OutboundBinding] {
+    var outboundBindings: [OutboundBinding] {
         didSet {
             guard outboundBindings != oldValue else { return }
             persist(outboundBindings, forKey: Keys.outboundBindings)
@@ -202,7 +204,7 @@ final class SettingsStore: ObservableObject {
 
     // MARK: Direct providers — DeepL (v0.3)
 
-    @Published var deeplAPIKey: String {
+    var deeplAPIKey: String {
         didSet {
             guard deeplAPIKey != oldValue else { return }
             writeKeychain(deeplAPIKey, account: Accounts.deeplAPIKey)
@@ -211,7 +213,7 @@ final class SettingsStore: ObservableObject {
 
     /// `true` = use Free endpoint (api-free.deepl.com), `false` = Pro
     /// (api.deepl.com). Free is the common case so default true.
-    @Published var deeplUseFree: Bool {
+    var deeplUseFree: Bool {
         didSet {
             guard deeplUseFree != oldValue else { return }
             defaults.set(deeplUseFree, forKey: Keys.deeplUseFree)
@@ -220,14 +222,14 @@ final class SettingsStore: ObservableObject {
 
     // MARK: Direct providers — LibreTranslate (v0.3)
 
-    @Published var libreTranslateBaseURL: String {
+    var libreTranslateBaseURL: String {
         didSet {
             guard libreTranslateBaseURL != oldValue else { return }
             defaults.set(libreTranslateBaseURL, forKey: Keys.libreTranslateBaseURL)
         }
     }
 
-    @Published var libreTranslateAPIKey: String {
+    var libreTranslateAPIKey: String {
         didSet {
             guard libreTranslateAPIKey != oldValue else { return }
             writeKeychain(libreTranslateAPIKey, account: Accounts.libreTranslateAPIKey)

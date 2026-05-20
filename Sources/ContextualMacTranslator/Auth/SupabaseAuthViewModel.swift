@@ -1,14 +1,16 @@
 import Foundation
+import Observation
 
 /// SwiftUI-facing view model for the "Connect to Cloud" OTP flow.
 ///
-/// Bridges the `SupabaseAuthService` actor to a `@MainActor`
-/// `ObservableObject` the Settings panel can bind to. No service instance
-/// is cached — each operation builds a fresh service that reads the latest
-/// session from the shared Keychain store, exactly like
+/// Bridges the `SupabaseAuthService` actor to a `@MainActor` `@Observable`
+/// reference type the Settings panel can bind to via `@Bindable`. No service
+/// instance is cached — each operation builds a fresh service that reads the
+/// latest session from the shared Keychain store, exactly like
 /// `TranslationProviderFactory`. The Keychain is the single source of truth.
 @MainActor
-final class SupabaseAuthViewModel: ObservableObject {
+@Observable
+final class SupabaseAuthViewModel {
     /// UI state machine for the sign-in flow.
     enum Phase: Equatable {
         case idle
@@ -19,9 +21,9 @@ final class SupabaseAuthViewModel: ObservableObject {
         case error(String)
     }
 
-    @Published private(set) var phase: Phase = .idle
-    @Published var emailInput: String = ""
-    @Published var codeInput: String = ""
+    private(set) var phase: Phase = .idle
+    var emailInput: String = ""
+    var codeInput: String = ""
 
     private let settings: SettingsStore
     private let urlSession: URLSession

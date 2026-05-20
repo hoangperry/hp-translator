@@ -1,5 +1,5 @@
 import AppKit
-import Combine
+import Observation
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -7,7 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: SettingsWindowController?
     private var onboardingWindowController: OnboardingWindowController?
     private var hotKeysRegistered = false
-    private var bindingObservers: Set<AnyCancellable> = []
+    private var isObservingBindings = false
 
     private lazy var permissionManager = PermissionManager()
     private lazy var hudController = HUDController()
@@ -137,16 +137,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func observeBindingChangesIfNeeded() {
-        guard bindingObservers.isEmpty else { return }
+        guard !isObservingBindings else { return }
+        isObservingBindings = true
+        observeBindingsOnce()
+    }
+
+    /// Re-arming observation: `withObservationTracking` fires once and then
+    /// stops, so the `onChange` callback re-registers the closure to keep
+    /// observing future changes. This is the standard pattern with the
+    /// Observation framework when you want continuous notifications.
+    private func observeBindingsOnce() {
         let settings = SettingsStore.shared
-        settings.$inboundBinding
-            .dropFirst()
-            .sink { [weak self] _ in self?.applyHotKeys() }
-            .store(in: &bindingObservers)
-        settings.$outboundBindings
-            .dropFirst()
-            .sink { [weak self] _ in self?.applyHotKeys() }
-            .store(in: &bindingObservers)
+        withObservationTracking {
+            _ = settings.inboundBinding
+            _ = settings.outboundBindings
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.applyHotKeys()
+                self.observeBindingsOnce()
+            }
+        }
     }
 
     private func applyHotKeys() {

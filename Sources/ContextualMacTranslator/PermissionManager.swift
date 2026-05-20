@@ -1,10 +1,12 @@
 import AppKit
 import ApplicationServices
+import Observation
 
 @MainActor
-final class PermissionManager: ObservableObject {
-    @Published private(set) var accessibilityGranted: Bool = AXIsProcessTrusted()
-    @Published private(set) var inputMonitoringGranted: Bool = CGPreflightListenEventAccess()
+@Observable
+final class PermissionManager {
+    private(set) var accessibilityGranted: Bool = AXIsProcessTrusted()
+    private(set) var inputMonitoringGranted: Bool = CGPreflightListenEventAccess()
 
     func refresh() {
         accessibilityGranted = AXIsProcessTrusted()

@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import SwiftUI
 
 /// User decision returned from the preview HUD.
@@ -179,11 +180,12 @@ final class PreviewHUDController: PreviewPresenter {
 // MARK: - View model + view
 
 @MainActor
-final class PreviewHUDViewModel: ObservableObject {
+@Observable
+final class PreviewHUDViewModel {
     let original: String
     let persona: Persona
-    @Published var editableTranslation: String
-    @Published var isEditing = false
+    var editableTranslation: String
+    var isEditing = false
 
     var onSend: () -> Void = {}
     var onCancel: () -> Void = {}
@@ -200,7 +202,7 @@ final class PreviewHUDViewModel: ObservableObject {
 }
 
 struct PreviewHUDView: View {
-    @ObservedObject var model: PreviewHUDViewModel
+    @Bindable var model: PreviewHUDViewModel
     @FocusState private var editorFocused: Bool
 
     var body: some View {

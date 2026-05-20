@@ -27,7 +27,7 @@ final class OnboardingWindowController {
 }
 
 private struct OnboardingView: View {
-    @ObservedObject var permissionManager: PermissionManager
+    var permissionManager: PermissionManager
     let onContinue: @MainActor () -> Void
 
     private var isInApplicationsFolder: Bool {

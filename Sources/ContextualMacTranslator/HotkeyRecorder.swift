@@ -16,7 +16,7 @@ struct HotkeyRecorderSheet: View {
     /// false alarm.
     var ownerBindingID: UUID?
 
-    @ObservedObject private var settings = SettingsStore.shared
+    private let settings = SettingsStore.shared
 
     @State private var capturedHotkey: HotkeyConfig?
     @State private var status: RecorderStatus = .waiting

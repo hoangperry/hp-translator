@@ -24,11 +24,17 @@ final class SettingsWindowController {
 }
 
 struct SettingsView: View {
-    @ObservedObject private var settings = SettingsStore.shared
-    @ObservedObject var permissionManager: PermissionManager
+    @Bindable var settings: SettingsStore
+    var permissionManager: PermissionManager
     @State private var inboundRecorderShown = false
     @State private var outboundRecorderID: UUID?
-    @StateObject private var cloudAuth = SupabaseAuthViewModel(settings: .shared)
+    @State private var cloudAuth: SupabaseAuthViewModel
+
+    init(permissionManager: PermissionManager) {
+        self.settings = SettingsStore.shared
+        self.permissionManager = permissionManager
+        _cloudAuth = State(initialValue: SupabaseAuthViewModel(settings: .shared))
+    }
 
     /// Grouped `Form` — gives the native macOS System-Settings look (inset
     /// grouped cards) instead of a flat divider-separated scroll.
@@ -331,7 +337,8 @@ struct SettingsView: View {
     }
 
     private var cloudEmailEntry: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        @Bindable var cloudAuth = cloudAuth
+        return VStack(alignment: .leading, spacing: 8) {
             LabeledTextField(label: "Email", text: $cloudAuth.emailInput, placeholder: "[email protected]")
             Button("Send sign-in code") {
                 Task { await cloudAuth.sendCode() }
@@ -343,7 +350,8 @@ struct SettingsView: View {
     }
 
     private var cloudCodeEntry: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        @Bindable var cloudAuth = cloudAuth
+        return VStack(alignment: .leading, spacing: 8) {
             LabeledTextField(label: "6-digit code", text: $cloudAuth.codeInput, placeholder: "123456")
             HStack {
                 Button("Verify & connect") {
