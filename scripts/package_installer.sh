@@ -3,9 +3,9 @@ set -euo pipefail
 
 CONFIG="${1:-release}"
 APP_NAME="Contextual Mac Translator"
-PACKAGE_NAME="Contextual-Mac-Translator-v0.5.0-macos-arm64.pkg"
+PACKAGE_NAME="Contextual-Mac-Translator-v0.5.1-macos-arm64.pkg"
 PACKAGE_IDENTIFIER="app.lookerlab.translator.installer"
-PACKAGE_VERSION="0.5.0"
+PACKAGE_VERSION="0.5.1"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 "$ROOT_DIR/scripts/package_app.sh" "$CONFIG"

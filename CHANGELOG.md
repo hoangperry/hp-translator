@@ -27,6 +27,45 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
 
 > See [`../docs/PRD-saas-m2.md`](../docs/PRD-saas-m2.md) for full M2 specification and the adversarial review findings that shaped it.
 
+## [0.5.1] — 2026-05-20
+
+Liquid Glass (macOS 26 Tahoe) adoption for the HUD + Preview panels, plus
+explicit dismissal controls so the result HUD no longer feels stuck on
+screen. Display stability preserved — the panels never disappear from
+focus changes alone.
+
+### Added
+
+- **Liquid Glass background** — HUD and Preview panels now use
+  `.glassEffect(in:)` on macOS 26+, falling back to `.regularMaterial` on
+  older systems. Corner radius bumped (12pt HUD, 14pt Preview) so the
+  glass refracts the bezel cleanly; borders softened to 0.5pt at 60%
+  opacity to let the glass do the visual work.
+- **Close button on the result HUD** — `xmark.circle.fill` in the top
+  trailing corner of the loading / result / error panels. Hierarchical
+  symbol rendering, secondary tint, `.plain` button style; accessible
+  via VoiceOver as "Dismiss".
+- **Click-outside dismiss** — `NSEvent.addGlobalMonitorForEvents`
+  registers a global mouse-down listener while the HUD is up. Any click
+  outside the panel (in another app) hides it instantly. Esc was
+  considered but rejected — a global Esc monitor would intercept the
+  key in every other app while the HUD is visible.
+
+### Changed
+
+- **Stability over aggression** — the auto-hide timer (6s error, 8s
+  result) remains the safety net. Combined with the X button and
+  click-outside, every dismissal path is explicit; no automatic
+  focus-loss dismissal that could surprise the user mid-read.
+
+### Build
+
+- Bundle 0.5.1 (build 13).
+
+### Tests
+
+- App: **190 Swift / 45 suites** GREEN.
+
 ## [0.5.0] — 2026-05-20
 
 SwiftUI App architecture: `@main App` with `MenuBarExtra` replaces the

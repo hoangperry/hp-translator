@@ -19,6 +19,7 @@ final class HUDController {
     private var panel: NSPanel?
     private var hostingController: NSHostingController<HUDView>?
     private var hideTask: Task<Void, Never>?
+    private var clickMonitor: Any?
 
     func showLoading(_ message: String, persona: Persona) {
         show(HUDState(
@@ -65,6 +66,7 @@ final class HUDController {
     func dismiss() {
         hideTask?.cancel()
         hideTask = nil
+        uninstallDismissMonitors()
         panel?.orderOut(nil)
     }
 
@@ -72,19 +74,50 @@ final class HUDController {
         hideTask?.cancel()
         let panel = panel ?? makePanel()
         let hostingController = hostingController ?? makeHostingController(state: state)
-        hostingController.rootView = HUDView(state: state)
+        hostingController.rootView = HUDView(
+            state: state,
+            onDismiss: { [weak self] in self?.dismiss() }
+        )
         panel.contentViewController = hostingController
         self.panel = panel
         self.hostingController = hostingController
 
         position(panel: panel, hostingView: hostingController.view)
         panel.orderFrontRegardless()
+        installDismissMonitors()
 
         if let delay {
-            hideTask = Task { @MainActor in
+            hideTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: delay)
-                panel.orderOut(nil)
+                self?.dismiss()
             }
+        }
+    }
+
+    /// Click-anywhere-outside-the-panel to dismiss. Uses a global event
+    /// monitor (fires only when *another* app receives the click, since
+    /// `.nonactivatingPanel` keeps focus elsewhere). We don't add a local
+    /// monitor because clicks inside the panel hit SwiftUI controls (the
+    /// X button) directly — no need to also dismiss on those.
+    ///
+    /// Esc would be nice but a global key monitor would intercept Esc
+    /// in every other app while the HUD is up, which is intrusive. The
+    /// X button + click-outside + auto-hide timer cover dismissal.
+    private func installDismissMonitors() {
+        uninstallDismissMonitors()
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.dismiss()
+            }
+        }
+    }
+
+    private func uninstallDismissMonitors() {
+        if let monitor = clickMonitor {
+            NSEvent.removeMonitor(monitor)
+            clickMonitor = nil
         }
     }
 
@@ -101,8 +134,10 @@ final class HUDController {
         panel.level = .floating
         // Removed `.transient` — it caused the panel to disappear within
         // ~0.5s when the originating app reasserted focus, so users couldn't
-        // read the HUD content. We now rely on the explicit `hideTask`
-        // delay (6s for errors, 8s for results) for dismissal.
+        // read the HUD content. Dismissal now relies on:
+        //   1. Auto-hide timer (6s error / 8s result)
+        //   2. X close button on the panel
+        //   3. Click anywhere outside the panel (global event monitor)
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = false
@@ -110,7 +145,7 @@ final class HUDController {
     }
 
     private func makeHostingController(state: HUDState) -> NSHostingController<HUDView> {
-        NSHostingController(rootView: HUDView(state: state))
+        NSHostingController(rootView: HUDView(state: state, onDismiss: {}))
     }
 
     private func position(panel: NSPanel, hostingView: NSView) {
@@ -135,8 +170,24 @@ final class HUDController {
     }
 }
 
+/// macOS 26 Tahoe introduced Liquid Glass via `.glassEffect(in:)`. On older
+/// systems we fall back to `.regularMaterial` + `clipShape`, which is the
+/// closest visual approximation and what the app shipped with before.
+extension View {
+    @ViewBuilder
+    func panelBackground<S: Shape>(in shape: S) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(in: shape)
+        } else {
+            self.background(.regularMaterial)
+                .clipShape(shape)
+        }
+    }
+}
+
 struct HUDView: View {
     let state: HUDState
+    let onDismiss: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -150,6 +201,15 @@ struct HUDView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 16, weight: .regular))
+                }
+                .buttonStyle(.plain)
+                .help("Dismiss")
+                .accessibilityLabel("Dismiss")
             }
 
             Text(state.message)
@@ -159,11 +219,10 @@ struct HUDView: View {
         }
         .padding(14)
         .frame(width: 380, alignment: .leading)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .panelBackground(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(.separator, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(.separator.opacity(0.6), lineWidth: 0.5)
         )
     }
 
