@@ -32,11 +32,14 @@ swift build -c "$CONFIG"
 APP_DIR="$ROOT_DIR/.build/app/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
+RESOURCES_DIR="$CONTENTS_DIR/Resources"
 BUILD_DIR="$ROOT_DIR/.build/$CONFIG"
+ICON_SOURCE="$ROOT_DIR/scripts/AppIcon.icns"
 
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BUILD_DIR/$BINARY_NAME" "$MACOS_DIR/$BINARY_NAME"
+cp "$ICON_SOURCE" "$RESOURCES_DIR/AppIcon.icns"
 
 cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -55,6 +58,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
   <string>Contextual Mac Translator</string>
   <key>CFBundleDisplayName</key>
   <string>Contextual Mac Translator</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
