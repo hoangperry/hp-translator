@@ -3,7 +3,6 @@ import Observation
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var statusItem: NSStatusItem?
     private var settingsWindowController: SettingsWindowController?
     private var onboardingWindowController: OnboardingWindowController?
     private var hotKeysRegistered = false
@@ -23,8 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var hotKeyManager = HotKeyManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The menu bar status item is now owned by the SwiftUI MenuBarExtra
+        // scene in `ContextualMacTranslatorApp` — we only set up the hidden
+        // main menu (Edit submenu for Cmd-C/V/X responder chain in text
+        // fields) and the post-launch flow here.
         buildMainMenu()
-        buildStatusItem()
         if SettingsStore.shared.firstRunCompleted {
             registerHotKeys()
         } else {
@@ -77,54 +79,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotKeyManager.unregisterAll()
-    }
-
-    private func buildStatusItem() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.title = "文"
-
-        let menu = NSMenu()
-        menu.addItem(NSMenuItem(
-            title: "Translate Selection to Vietnamese    Option-D",
-            action: #selector(translateSelection),
-            keyEquivalent: ""
-        ))
-        menu.addItem(NSMenuItem(
-            title: "Send Japanese Keigo    Command-Return",
-            action: #selector(sendKeigo),
-            keyEquivalent: ""
-        ))
-        menu.addItem(NSMenuItem(
-            title: "Send Japanese Casual    Option-Return",
-            action: #selector(sendCasual),
-            keyEquivalent: ""
-        ))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(
-            title: "Settings...",
-            action: #selector(openSettings),
-            keyEquivalent: ","
-        ))
-        menu.addItem(NSMenuItem(
-            title: "Request Permissions",
-            action: #selector(requestPermissions),
-            keyEquivalent: ""
-        ))
-        menu.addItem(NSMenuItem(
-            title: "First Launch Setup...",
-            action: #selector(openOnboarding),
-            keyEquivalent: ""
-        ))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(
-            title: "Quit",
-            action: #selector(quit),
-            keyEquivalent: "q"
-        ))
-
-        menu.items.forEach { $0.target = self }
-        item.menu = menu
-        statusItem = item
     }
 
     /// Re-register all global hotkeys from the current settings. Safe to
@@ -199,13 +153,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onboardingWindowController?.show()
     }
 
-    @objc private func translateSelection() {
+    @objc func translateSelection() {
         Task { @MainActor in
             await workflow.translateSelection()
         }
     }
 
-    @objc private func sendKeigo() {
+    @objc func sendKeigo() {
         Task { @MainActor in
             // Status-bar fallback for first outbound binding marked formal.
             let style: TranslationStyle = SettingsStore.shared.outboundBindings.first(where: { $0.register == .formal })?.style() ?? .japaneseBusiness
@@ -213,30 +167,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func sendCasual() {
+    @objc func sendCasual() {
         Task { @MainActor in
             let style: TranslationStyle = SettingsStore.shared.outboundBindings.first(where: { $0.register == .casual })?.style() ?? .japaneseCasual
             await workflow.translateAndSend(persona: style)
         }
     }
 
-    @objc private func openSettings() {
+    @objc func openSettings() {
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController(permissionManager: permissionManager)
         }
         settingsWindowController?.show()
     }
 
-    @objc private func requestPermissions() {
+    @objc func requestPermissions() {
         permissionManager.requestAccessibilityIfNeeded()
         permissionManager.requestInputMonitoringIfNeeded()
     }
 
-    @objc private func openOnboarding() {
+    @objc func openOnboarding() {
         showOnboarding()
     }
 
-    @objc private func quit() {
+    @objc func quit() {
         NSApplication.shared.terminate(nil)
     }
 }

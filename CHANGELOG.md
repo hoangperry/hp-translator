@@ -15,9 +15,6 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   banner trên first launch yêu cầu nhập lại credentials.
 - **Sparkle auto-update** — Sparkle 2 với EdDSA-signed appcasts hosted
   tại static URL; daily check, opt-out trong onboarding.
-- **MenuBarExtra refactor** — chuyển `NSStatusItem` thủ công sang SwiftUI
-  scene (`MenuBarExtra`) cho code menu-bar gọn hơn và lifecycle nhất
-  quán với app SwiftUI 14+.
 
 ### Planned for M2.1 — quota + cache (target 2026-08)
 
@@ -29,6 +26,36 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
 - BYOK mode for Pro users (API keys stay in macOS Keychain, never sent to our server).
 
 > See [`../docs/PRD-saas-m2.md`](../docs/PRD-saas-m2.md) for full M2 specification and the adversarial review findings that shaped it.
+
+## [0.5.0] — 2026-05-20
+
+SwiftUI App architecture: `@main App` with `MenuBarExtra` replaces the
+manual `NSApplication.shared` + `NSStatusItem` setup. Swift 6 language
+mode enabled across the whole package — the codebase was already
+concurrency-correct, so no warnings to fix.
+
+### Changed
+
+- **MenuBarExtra refactor** — `main.swift` (top-level `NSApplication`
+  setup + manual `AppDelegate` wiring) gone; replaced by
+  `ContextualMacTranslatorApp.swift` with `@main App`, declarative
+  `MenuBarExtra` scene, and `@NSApplicationDelegateAdaptor` keeping the
+  existing `AppDelegate` alive for hotkeys, workflow, HUDs, and the
+  Settings + Onboarding windows. Dead code (`buildStatusItem` and the
+  `statusItem` property) removed from `AppDelegate`.
+- **Swift 6 language mode** enabled on both the executable and test
+  targets (`swiftSettings: [.swiftLanguageMode(.v6)]`). The codebase
+  was already correctly annotated with `@MainActor`, `Sendable` value
+  types, and `@Observable` reference types, so the upgrade was a
+  zero-diff for source files.
+
+### Build
+
+- Bundle 0.5.0 (build 12).
+
+### Tests
+
+- App: **190 Swift / 45 suites** GREEN.
 
 ## [0.4.1] — 2026-05-20
 
@@ -268,7 +295,8 @@ F-5 (focus guard), F-9 (glossary in Keychain).
 Early alpha iterations: bundle ID rename, sign mac app, installer/DMG packaging.
 Chi tiết trong `git log v0.1.0..v0.1.4`.
 
-[Unreleased]: https://github.com/hoangperry/hp-translator/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/hoangperry/hp-translator/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/hoangperry/hp-translator/releases/tag/v0.5.0
 [0.4.1]: https://github.com/hoangperry/hp-translator/releases/tag/v0.4.1
 [0.4.0]: https://github.com/hoangperry/hp-translator/releases/tag/v0.4.0
 [0.3.1]: https://github.com/hoangperry/hp-translator/releases/tag/v0.3.1

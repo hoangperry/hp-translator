@@ -16,12 +16,14 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "ContextualMacTranslator",
-            path: "Sources/ContextualMacTranslator"
+            path: "Sources/ContextualMacTranslator",
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "ContextualMacTranslatorTests",
             dependencies: ["ContextualMacTranslator"],
-            path: "Tests/ContextualMacTranslatorTests"
+            path: "Tests/ContextualMacTranslatorTests",
+            swiftSettings: [.swiftLanguageMode(.v6)]
         )
     ]
 )
