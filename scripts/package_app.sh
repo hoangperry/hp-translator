@@ -5,6 +5,13 @@ CONFIG="${1:-debug}"
 APP_NAME="Contextual Mac Translator"
 BINARY_NAME="ContextualMacTranslator"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# Hardened runtime is enabled via `codesign --options runtime`.
+# scripts/entitlements.plist must stay COMMENT-FREE — Apple's AMFI parser
+# (used by codesign) rejects XML comments inside the <dict>, even though
+# `plutil -lint` accepts them. The single entitlement we enable is
+# com.apple.security.cs.disable-library-validation, needed so the
+# Swift runtime dylibs (libswift_Concurrency, …) can load whether they
+# resolve to /usr/lib/swift or the Xcode toolchain bundle.
 ENTITLEMENTS="$ROOT_DIR/scripts/entitlements.plist"
 
 # Optional Developer ID signing. Export CODESIGN_IDENTITY to enable:
