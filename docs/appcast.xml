@@ -8,6 +8,22 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.6.2</title>
+      <pubDate>Fri, 22 May 2026 04:57:19 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Liquid Glass Settings + OTA verification</h2>
+        <p>The Settings window now adopts the macOS 26 Liquid Glass look, matching the onboarding window. This release also verifies the Sparkle auto-update path end-to-end.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.6.2">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.6.2/Contextual-Mac-Translator-v0.6.2-macos-arm64.zip"
+        sparkle:version="16"
+        sparkle:shortVersionString="0.6.2"
+        sparkle:edSignature="CxN7x7/kT0kxE+V+xBDu1QuKOJCoRNST/Trb/wg6NCY3cSeoVrY4Is5q0acikWseGndrlBm1L6nC6LJx1D1ACw==" length="1761809"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.6.1</title>
       <pubDate>Fri, 22 May 2026 04:15:01 +0700</pubDate>
       <description><![CDATA[

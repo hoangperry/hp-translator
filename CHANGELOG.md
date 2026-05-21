@@ -14,6 +14,26 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.6.2] — 2026-05-22
+
+Completes the Liquid Glass pass and serves as the first end-to-end
+verification of the Sparkle auto-update path (v0.6.1 → v0.6.2).
+
+### Changed
+
+- **Settings window adopts Liquid Glass** — translucent window with the
+  grouped `Form`'s opaque scroll backing hidden (`scrollContentBackground(.hidden)`)
+  over an `ultraThinMaterial` layer, matching the onboarding window. The
+  macOS 26 System Settings look.
+
+### Build
+
+- Bundle 0.6.2 (build 16).
+
+### Tests
+
+- App: **190 Swift / 45 suites** GREEN.
+
 ## [0.6.1] — 2026-05-22
 
 Hotfix — v0.6.0 crashed on launch. **Anyone on v0.6.0 must download

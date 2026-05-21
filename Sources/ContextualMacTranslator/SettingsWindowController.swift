@@ -13,6 +13,11 @@ final class SettingsWindowController {
         window.title = "Contextual Mac Translator"
         window.setContentSize(NSSize(width: 600, height: 700))
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        // Translucent window so the grouped Form's material backing
+        // samples the desktop — the macOS 26 System Settings look.
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.center()
     }
@@ -47,6 +52,10 @@ struct SettingsView: View {
             advancedSection
         }
         .formStyle(.grouped)
+        // Hide the Form's opaque scroll backing so the translucent
+        // window shows through, then supply a Liquid Glass material.
+        .scrollContentBackground(.hidden)
+        .background(.ultraThinMaterial)
         .frame(minWidth: 620, minHeight: 700)
         .sheet(isPresented: $inboundRecorderShown) {
             HotkeyRecorderSheet(
