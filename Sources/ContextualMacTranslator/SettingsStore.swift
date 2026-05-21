@@ -308,6 +308,11 @@ final class SettingsStore {
         static let openAICompatBaseURL = "https://api.openai.com/v1"
         static let openAICompatModel = "gpt-4.1-mini"
         static let libreTranslateBaseURL = "https://libretranslate.com"
+        // Contextual MT Cloud — both values are public by design (the anon
+        // key is meant to ship in clients; RLS protects data server-side).
+        // Pre-filled so cloud sign-in needs only an email + OTP code.
+        static let supabaseURL = "https://dtpeinsccoltpfhufyag.supabase.co"
+        static let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0cGVpbnNjY29sdHBmaHVmeWFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyODM2MTYsImV4cCI6MjA5NDg1OTYxNn0.yhOwyfRX1tUBmro0A5DluuCl1Tig20e2cI3wYN1qO1s"
     }
 
     init(
@@ -341,8 +346,8 @@ final class SettingsStore {
         // SaaS cloud auth (M2.1)
         backendAuthMode = defaults.string(forKey: Keys.backendAuthMode)
             .flatMap(BackendAuthMode.init(rawValue:)) ?? .selfHostStaticToken
-        supabaseURL = defaults.string(forKey: Keys.supabaseURL) ?? ""
-        supabaseAnonKey = defaults.string(forKey: Keys.supabaseAnonKey) ?? ""
+        supabaseURL = defaults.string(forKey: Keys.supabaseURL) ?? ProviderDefaults.supabaseURL
+        supabaseAnonKey = defaults.string(forKey: Keys.supabaseAnonKey) ?? ProviderDefaults.supabaseAnonKey
 
         // Direct providers
         geminiAPIKey = (try? keychain.read(account: Accounts.geminiAPIKey)) ?? ""

@@ -308,11 +308,8 @@ struct SettingsView: View {
     /// `cloudAuth.phase`.
     private var cloudConnectForm: some View {
         VStack(alignment: .leading, spacing: 10) {
-            LabeledTextField(label: "Supabase project URL", text: $settings.supabaseURL, placeholder: "https://<ref>.supabase.co")
-            LabeledSecureField(label: "Supabase anon key", text: $settings.supabaseAnonKey, placeholder: "public anon key")
-
-            Divider()
-
+            // Supabase URL + anon key ship pre-filled (ProviderDefaults) —
+            // no manual entry needed. Sign in with just an email + code.
             switch cloudAuth.phase {
             case .idle, .error:
                 cloudEmailEntry
