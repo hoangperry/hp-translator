@@ -8,25 +8,24 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
-      <title>v0.6.0</title>
-      <pubDate>Wed, 20 May 2026 23:03:18 +0700</pubDate>
+      <title>v0.6.1</title>
+      <pubDate>Fri, 22 May 2026 04:15:01 +0700</pubDate>
       <description><![CDATA[
-        <h2>OTA auto-updates with Sparkle 2</h2>
-        <p>This is the first release with Sparkle integration. From now on, the app checks for updates automatically — no more manual DMG downloads.</p>
+        <h2>Crash hotfix + draggable popups</h2>
+        <p>v0.6.0 crashed on launch (a missing rpath meant the embedded Sparkle framework could not load). This release fixes that.</p>
         <ul>
-          <li>Daily background check for new releases</li>
-          <li>"Check for Updates…" in the menu bar</li>
-          <li>EdDSA-signed update bundles (tamper-proof)</li>
-          <li>Apple-notarized DMG + update zip</li>
+          <li>Fixed: app no longer crashes at launch</li>
+          <li>HUD and preview popups are now draggable and resizable</li>
+          <li>Onboarding window adopts the macOS 26 Liquid Glass look</li>
         </ul>
-        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.6.0">release notes</a> on GitHub.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.6.1">release notes</a> on GitHub.</p>
       ]]></description>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <enclosure
-        url="https://github.com/hoangperry/hp-translator/releases/download/v0.6.0/Contextual-Mac-Translator-v0.6.0-macos-arm64.zip"
-        sparkle:version="14"
-        sparkle:shortVersionString="0.6.0"
-        sparkle:edSignature="qzfvSpj/u6xMSoO34uzuxUfRtNhEsZNjKRo0dXY5S60i1K7/dDENWEbzABx3KwAL6q1Cu5fqCs96N5jD8zQ+Ag==" length="1755621"
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.6.1/Contextual-Mac-Translator-v0.6.1-macos-arm64.zip"
+        sparkle:version="15"
+        sparkle:shortVersionString="0.6.1"
+        sparkle:edSignature="/Pmz/mPa5BS+fM8ORXIhZMM6D2fvKnpE/1ERXoJRcThu1AUV76OiwefO9ru0YGbroC+XXY75tKz0lRFan5t6BA==" length="1759080"
         type="application/octet-stream" />
     </item>
   </channel>

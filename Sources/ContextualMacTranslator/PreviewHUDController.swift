@@ -100,6 +100,9 @@ final class PreviewHUDController: PreviewPresenter {
         let panel = panel ?? makePanel()
         panel.onTabPressed = { model.enterEditMode() }
         let hostingController = NSHostingController(rootView: PreviewHUDView(model: model))
+        // `.minSize` lets the panel resize freely instead of snapping
+        // back to the SwiftUI content's preferred size.
+        hostingController.sizingOptions = .minSize
         panel.contentViewController = hostingController
         self.panel = panel
         self.hostingController = hostingController
@@ -146,7 +149,9 @@ final class PreviewHUDController: PreviewPresenter {
     private func makePanel() -> KeyableNonactivatingPanel {
         let panel = KeyableNonactivatingPanel(
             contentRect: NSRect(x: 0, y: 0, width: 460, height: 220),
-            styleMask: [.borderless, .nonactivatingPanel],
+            // `.resizable` works on borderless panels — the user can
+            // drag any edge to resize even without a visible frame.
+            styleMask: [.borderless, .nonactivatingPanel, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -156,6 +161,10 @@ final class PreviewHUDController: PreviewPresenter {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.hidesOnDeactivate = false
+        // Drag from any non-control area to reposition the preview.
+        panel.isMovableByWindowBackground = true
+        panel.minSize = NSSize(width: 380, height: 220)
+        panel.maxSize = NSSize(width: 860, height: 720)
         return panel
     }
 
@@ -272,7 +281,7 @@ struct PreviewHUDView: View {
             }
         }
         .padding(16)
-        .frame(width: 500, alignment: .leading)
+        .frame(minWidth: 380, idealWidth: 500, maxWidth: .infinity, alignment: .leading)
         .panelBackground(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

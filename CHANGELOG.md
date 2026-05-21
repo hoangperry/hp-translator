@@ -14,6 +14,39 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.6.1] — 2026-05-22
+
+Hotfix — v0.6.0 crashed on launch. **Anyone on v0.6.0 must download
+v0.6.1 manually** (the crash happens before Sparkle starts, so auto
+update can't reach them). Every release after this updates silently.
+
+### Fixed
+
+- **Crash on launch (dyld: Library not loaded `@rpath/Sparkle.framework`)**
+  — `swift build` only bakes rpaths for the `.build/` layout. Once the
+  binary moved into `Contents/MacOS/` and Sparkle into
+  `Contents/Frameworks/`, dyld had no rpath that resolved there.
+  `package_app.sh` now adds `@executable_path/../Frameworks` to the
+  binary's rpath list before signing.
+
+### Changed
+
+- **HUD + preview popups are now draggable and resizable** — drag from
+  any non-control area to reposition; drag any edge to resize (works on
+  the borderless panels via the `.resizable` style mask). The HUD keeps
+  its position/size while a translation streams in.
+- **Onboarding window adopts Liquid Glass** — translucent window with
+  an `.ultraThinMaterial` backing; the Accessibility / Input Monitoring
+  permission rows are now glass cards on macOS 26 Tahoe.
+
+### Build
+
+- Bundle 0.6.1 (build 15).
+
+### Tests
+
+- App: **190 Swift / 45 suites** GREEN.
+
 ## [0.6.0] — 2026-05-20
 
 OTA auto-updates! Sparkle 2 integrated — once users install v0.6.0 they

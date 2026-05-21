@@ -82,7 +82,12 @@ final class HUDController {
         self.panel = panel
         self.hostingController = hostingController
 
-        position(panel: panel, hostingView: hostingController.view)
+        // Only auto-position on a fresh presentation. While a stream is
+        // updating the HUD (`updateLoading` fires repeatedly), keep
+        // wherever the user has dragged or resized the panel to.
+        if !panel.isVisible {
+            position(panel: panel, hostingView: hostingController.view)
+        }
         panel.orderFrontRegardless()
         installDismissMonitors()
 
@@ -124,7 +129,10 @@ final class HUDController {
     private func makePanel() -> NSPanel {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 380, height: 120),
-            styleMask: [.borderless, .nonactivatingPanel],
+            // `.resizable` works on borderless panels — macOS still
+            // hit-tests the ~5px edge band for resize even without a
+            // visible frame, so the user can drag any edge to resize.
+            styleMask: [.borderless, .nonactivatingPanel, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -140,12 +148,19 @@ final class HUDController {
         //   3. Click anywhere outside the panel (global event monitor)
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
-        panel.isMovableByWindowBackground = false
+        // Drag from any non-control area to reposition the HUD.
+        panel.isMovableByWindowBackground = true
+        panel.minSize = NSSize(width: 280, height: 88)
+        panel.maxSize = NSSize(width: 760, height: 640)
         return panel
     }
 
     private func makeHostingController(state: HUDState) -> NSHostingController<HUDView> {
-        NSHostingController(rootView: HUDView(state: state, onDismiss: {}))
+        let controller = NSHostingController(rootView: HUDView(state: state, onDismiss: {}))
+        // `.minSize` lets the panel grow/shrink freely on resize instead
+        // of snapping back to the SwiftUI content's preferred size.
+        controller.sizingOptions = .minSize
+        return controller
     }
 
     private func position(panel: NSPanel, hostingView: NSView) {
@@ -218,7 +233,7 @@ struct HUDView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(14)
-        .frame(width: 380, alignment: .leading)
+        .frame(minWidth: 280, idealWidth: 380, maxWidth: .infinity, alignment: .leading)
         .panelBackground(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)

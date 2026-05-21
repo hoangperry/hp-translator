@@ -11,7 +11,12 @@ final class OnboardingWindowController {
         window = NSWindow(contentViewController: controller)
         window.title = "Contextual Mac Translator"
         window.setContentSize(NSSize(width: 620, height: 500))
-        window.styleMask = [.titled, .closable]
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        // Translucent window so the SwiftUI content's Liquid Glass
+        // material samples the desktop behind it — the macOS 26 look.
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.center()
     }
@@ -110,8 +115,13 @@ private struct OnboardingView: View {
                 .controlSize(.large)
             }
         }
-        .padding(22)
+        .padding(.horizontal, 24)
+        .padding(.top, 40)
+        .padding(.bottom, 24)
         .frame(width: 620, height: 500)
+        // Translucent backing — pairs with the non-opaque window so the
+        // desktop blurs through, the macOS 26 Liquid Glass treatment.
+        .background(.ultraThinMaterial)
         .task {
             while !Task.isCancelled {
                 permissionManager.refresh()
@@ -181,5 +191,11 @@ private struct OnboardingPermissionRow: View {
             }
             .padding(.leading, 30)
         }
+        .padding(14)
+        .panelBackground(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(.separator.opacity(0.4), lineWidth: 0.5)
+        )
     }
 }

@@ -64,6 +64,18 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
 cp "$BUILD_DIR/$BINARY_NAME" "$MACOS_DIR/$BINARY_NAME"
 cp "$ICON_SOURCE" "$RESOURCES_DIR/AppIcon.icns"
 
+# `swift build` only bakes rpaths for the .build/ layout (it points at
+# .build/artifacts/.../Sparkle.framework). Once the binary moves into
+# Contents/MacOS/ and Sparkle.framework into Contents/Frameworks/, the
+# binary needs an rpath that resolves there — otherwise dyld fails with
+# "Library not loaded: @rpath/Sparkle.framework" and the app crashes
+# at launch before any UI appears. Sparkle's install name is
+# @rpath/Sparkle.framework/Versions/B/Sparkle, so the bundle-relative
+# search path Contents/Frameworks/ must be on the rpath list.
+if ! otool -l "$MACOS_DIR/$BINARY_NAME" | grep -q "@executable_path/../Frameworks"; then
+  install_name_tool -add_rpath "@executable_path/../Frameworks" "$MACOS_DIR/$BINARY_NAME"
+fi
+
 # Copy Sparkle.framework (with full Versions/B/ tree including
 # XPCServices, Updater.app, Autoupdate helper) into the app bundle.
 # Use `ditto` to preserve symlinks (Versions/Current → B) and metadata.
@@ -92,9 +104,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.6.0</string>
+  <string>0.6.1</string>
   <key>CFBundleVersion</key>
-  <string>14</string>
+  <string>15</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>
