@@ -282,7 +282,7 @@ struct PreviewHUDView: View {
         }
         .padding(16)
         .frame(minWidth: 380, idealWidth: 500, maxWidth: .infinity, alignment: .leading)
-        .panelBackground(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .liquidGlassBackground(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(.separator.opacity(0.6), lineWidth: 0.5)

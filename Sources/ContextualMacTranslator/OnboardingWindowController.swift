@@ -119,9 +119,9 @@ private struct OnboardingView: View {
         .padding(.top, 40)
         .padding(.bottom, 24)
         .frame(width: 620, height: 500)
-        // Translucent backing — pairs with the non-opaque window so the
-        // desktop blurs through, the macOS 26 Liquid Glass treatment.
-        .background(.ultraThinMaterial)
+        // Real Liquid Glass backing (`.glassEffect()` on macOS 26) — pairs
+        // with the non-opaque window so the desktop refracts through.
+        .liquidGlassBackground(in: Rectangle())
         .task {
             while !Task.isCancelled {
                 permissionManager.refresh()
@@ -192,7 +192,10 @@ private struct OnboardingPermissionRow: View {
             .padding(.leading, 30)
         }
         .padding(14)
-        .panelBackground(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        // A plain content card — NOT glass. The window itself already
+        // carries the Liquid Glass layer; stacking glass-on-glass renders
+        // wrong because glass cannot sample other glass.
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(.separator.opacity(0.4), lineWidth: 0.5)

@@ -52,10 +52,11 @@ struct SettingsView: View {
             advancedSection
         }
         .formStyle(.grouped)
-        // Hide the Form's opaque scroll backing so the translucent
-        // window shows through, then supply a Liquid Glass material.
+        // Hide the Form's opaque scroll backing so the translucent window
+        // shows through, then lay real Liquid Glass (`.glassEffect()` on
+        // macOS 26) behind the grouped sections.
         .scrollContentBackground(.hidden)
-        .background(.ultraThinMaterial)
+        .liquidGlassBackground(in: Rectangle())
         .frame(minWidth: 620, minHeight: 700)
         .sheet(isPresented: $inboundRecorderShown) {
             HotkeyRecorderSheet(

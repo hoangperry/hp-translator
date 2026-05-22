@@ -14,6 +14,43 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.6.3] — 2026-05-22
+
+Fixes the Liquid Glass adoption. v0.6.1/v0.6.2 made the onboarding and
+Settings windows translucent with `.ultraThinMaterial` — but that is the
+*legacy* vibrancy material (the pre-Tahoe fallback), not Liquid Glass. On
+macOS 26 those windows were rendering the old material, not glass.
+
+### Fixed
+
+- **Onboarding + Settings windows now use real Liquid Glass** — swapped the
+  unconditional `.ultraThinMaterial` for `liquidGlassBackground(in:)`, which
+  resolves to `.glassEffect()` on macOS 26 Tahoe and falls back to
+  `.regularMaterial` only on macOS 14/15.
+- **No more glass-on-glass** — the onboarding permission rows were glass
+  cards sitting on what is now a glass window. Glass cannot sample other
+  glass, so the rows are now plain `.quaternary` content cards.
+
+### Changed
+
+- Internal `View.panelBackground(in:)` helper renamed to
+  `liquidGlassBackground(in:)` with documentation clarifying that
+  `.material` is the fallback, not Liquid Glass.
+
+### Note
+
+- The app has always been built against the macOS 26.1 SDK, so standard
+  controls, the window chrome, sheets and menus already adopt Liquid Glass
+  automatically. This release only corrects the two custom window backings.
+
+### Build
+
+- Bundle 0.6.3 (build 17).
+
+### Tests
+
+- App: **190 Swift / 45 suites** GREEN.
+
 ## [0.6.2] — 2026-05-22
 
 Completes the Liquid Glass pass and serves as the first end-to-end

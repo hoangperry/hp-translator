@@ -185,12 +185,20 @@ final class HUDController {
     }
 }
 
-/// macOS 26 Tahoe introduced Liquid Glass via `.glassEffect(in:)`. On older
-/// systems we fall back to `.regularMaterial` + `clipShape`, which is the
-/// closest visual approximation and what the app shipped with before.
+/// Real Liquid Glass on macOS 26 Tahoe via `.glassEffect(in:)`, falling
+/// back to the pre-Tahoe `.regularMaterial` vibrancy on macOS 14/15.
+///
+/// `.glassEffect()` is the actual Liquid Glass API. A plain `.background(.material)`
+/// is NOT Liquid Glass — it is the legacy vibrancy material and only the
+/// correct choice as the older-OS fallback, which is exactly what the
+/// `else` branch is for.
+///
+/// Apply only ONE glass layer per surface. Glass cannot sample other glass,
+/// so never nest a `liquidGlassBackground` inside another without wrapping
+/// them in a `GlassEffectContainer`.
 extension View {
     @ViewBuilder
-    func panelBackground<S: Shape>(in shape: S) -> some View {
+    func liquidGlassBackground<S: Shape>(in shape: S) -> some View {
         if #available(macOS 26.0, *) {
             self.glassEffect(in: shape)
         } else {
@@ -234,7 +242,7 @@ struct HUDView: View {
         }
         .padding(14)
         .frame(minWidth: 280, idealWidth: 380, maxWidth: .infinity, alignment: .leading)
-        .panelBackground(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .liquidGlassBackground(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(.separator.opacity(0.6), lineWidth: 0.5)
