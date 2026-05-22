@@ -57,6 +57,29 @@ final class SupabaseAuthViewModel {
         }
     }
 
+    /// One-click pairing: open the browser, let the user authorize on the
+    /// web, capture the session via loopback. No email/code typed in the app.
+    func connectViaBrowser() async {
+        guard let config = settings.supabaseAuthConfig(),
+              let dashboard = URL(string: SettingsStore.ProviderDefaults.dashboardURL) else {
+            phase = .error("Cloud backend is not configured.")
+            return
+        }
+        phase = .verifying
+        let service = DeviceConnectService(
+            config: config,
+            dashboardURL: dashboard,
+            store: settings.makeSupabaseSessionStore(),
+            session: urlSession
+        )
+        do {
+            let email = try await service.connect()
+            phase = .connected(email: email)
+        } catch {
+            phase = .error(error.localizedDescription)
+        }
+    }
+
     /// Email a one-time code to `emailInput`.
     func sendCode() async {
         let email = emailInput.trimmingCharacters(in: .whitespacesAndNewlines)

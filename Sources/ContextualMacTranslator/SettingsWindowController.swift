@@ -344,14 +344,27 @@ struct SettingsView: View {
 
     private var cloudEmailEntry: some View {
         @Bindable var cloudAuth = cloudAuth
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: 10) {
+            Button {
+                Task { await cloudAuth.connectViaBrowser() }
+            } label: {
+                Label("Connect with contextmt.dev", systemImage: "globe")
+            }
+            .buttonStyle(.borderedProminent)
+            Text("Opens your browser — authorize once, nothing to type here.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Divider()
+
+            Text("Or sign in with an email code")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
             LabeledTextField(label: "Email", text: $cloudAuth.emailInput, placeholder: "[email protected]")
             Button("Send sign-in code") {
                 Task { await cloudAuth.sendCode() }
             }
-            Text("We email a 6-digit code. No password.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 

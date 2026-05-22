@@ -313,6 +313,8 @@ final class SettingsStore {
         // Pre-filled so cloud sign-in needs only an email + OTP code.
         static let supabaseURL = "https://dtpeinsccoltpfhufyag.supabase.co"
         static let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0cGVpbnNjY29sdHBmaHVmeWFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyODM2MTYsImV4cCI6MjA5NDg1OTYxNn0.yhOwyfRX1tUBmro0A5DluuCl1Tig20e2cI3wYN1qO1s"
+        // Dashboard origin — host of the one-click `/connect` authorize page.
+        static let dashboardURL = "https://app.contextmt.dev"
     }
 
     init(
