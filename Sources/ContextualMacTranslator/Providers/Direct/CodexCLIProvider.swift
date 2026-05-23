@@ -41,7 +41,7 @@ final class CodexCLIProvider: TranslationProvider {
         guard isConfigured else { throw TranslationError.missingEndpoint }
 
         let prompt = """
-        \(PromptBuilder.systemPrompt)
+        \(PromptBuilder.systemPrompt(for: job))
 
         You are being used as a translation subprocess for a menu bar app.
         Do not inspect files, run commands, ask questions, or explain your reasoning.

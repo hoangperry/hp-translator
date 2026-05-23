@@ -55,7 +55,7 @@ final class OpenAICompatibleDirectProvider: TranslationProvider {
             "model": config.model,
             "temperature": PromptBuilder.temperature(for: job.style),
             "messages": [
-                ["role": "system", "content": PromptBuilder.systemPrompt],
+                ["role": "system", "content": PromptBuilder.systemPrompt(for: job)],
                 ["role": "user", "content": PromptBuilder.userPrompt(for: job)],
             ],
         ]

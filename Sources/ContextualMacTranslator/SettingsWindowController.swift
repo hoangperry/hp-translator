@@ -33,6 +33,7 @@ struct SettingsView: View {
     var permissionManager: PermissionManager
     @State private var inboundRecorderShown = false
     @State private var outboundRecorderID: UUID?
+    @State private var rewriteRecorderID: UUID?
     @State private var cloudAuth: SupabaseAuthViewModel
 
     init(permissionManager: PermissionManager) {
@@ -48,6 +49,7 @@ struct SettingsView: View {
             languagesSection
             translationSourceSection
             glossarySection
+            rewriteSection
             permissionsSection
             advancedSection
         }
@@ -72,6 +74,18 @@ struct SettingsView: View {
                     isPresented: Binding(
                         get: { outboundRecorderID != nil },
                         set: { if !$0 { outboundRecorderID = nil } }
+                    ),
+                    ownerBindingID: bindingID
+                )
+            }
+        }
+        .sheet(item: $rewriteRecorderID) { bindingID in
+            if let index = settings.rewriteBindings.firstIndex(where: { $0.id == bindingID }) {
+                HotkeyRecorderSheet(
+                    hotkey: $settings.rewriteBindings[index].hotkey,
+                    isPresented: Binding(
+                        get: { rewriteRecorderID != nil },
+                        set: { if !$0 { rewriteRecorderID = nil } }
                     ),
                     ownerBindingID: bindingID
                 )
@@ -417,6 +431,66 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Contextual rewrite (v0.7)
+
+    private var rewriteSection: some View {
+        Section("Contextual rewrite") {
+            Text("Bind a hotkey to a tone (Polite, Professional, De-escalate…) and the app rewrites the current input line in that tone — same language, intent preserved. Always shown in a preview before sending.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !settings.rewriteAvailable {
+                Label("Rewrite needs an LLM provider (Gemini, Ollama, OpenAI-compatible). DeepL and Google Translate cannot rewrite — switch provider above to enable.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Rewrite bindings")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    Button("Add binding") { addRewriteBinding() }
+                }
+                ForEach($settings.rewriteBindings) { $binding in
+                    RewriteBindingRow(
+                        binding: $binding,
+                        onChangeHotkey: { rewriteRecorderID = binding.id },
+                        onDelete: { removeRewriteBinding(binding) }
+                    )
+                }
+                if settings.rewriteBindings.isEmpty {
+                    Text("No rewrite bindings yet. Add one above to assign a hotkey to a tone.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func addRewriteBinding() {
+        // Cycle through ⌥R / ⌥E / ⌥W / ⌥T / ⌥Y, skipping anything already
+        // used by inbound / outbound / existing rewrite bindings.
+        let candidates: [HotkeyConfig] = [
+            HotkeyConfig(keyCode: kVK_ANSI_R, modifiers: optionKey),
+            HotkeyConfig(keyCode: kVK_ANSI_E, modifiers: optionKey),
+            HotkeyConfig(keyCode: kVK_ANSI_W, modifiers: optionKey),
+            HotkeyConfig(keyCode: kVK_ANSI_T, modifiers: optionKey),
+            HotkeyConfig(keyCode: kVK_ANSI_Y, modifiers: optionKey),
+        ]
+        var used = Set(settings.outboundBindings.map(\.hotkey))
+        used.formUnion(settings.rewriteBindings.map(\.hotkey))
+        used.insert(settings.inboundBinding.hotkey)
+        let hotkey = candidates.first { !used.contains($0) } ?? candidates[0]
+        settings.rewriteBindings.append(RewriteBinding(tone: .polite, hotkey: hotkey))
+    }
+
+    private func removeRewriteBinding(_ binding: RewriteBinding) {
+        settings.rewriteBindings.removeAll { $0.id == binding.id }
+    }
+
     private var permissionsSection: some View {
         Section("Permissions") {
             PermissionRow(
@@ -572,6 +646,77 @@ private struct OutboundBindingRow: View {
                             .strokeBorder(.separator, lineWidth: 1)
                     )
                 Text("Overrides the default LLM style for this target. Leave empty to use the auto-derived register-aware instruction.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(8)
+        .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+/// Editable row for one rewrite binding (tone + optional custom instruction
+/// + hotkey). Custom tone always shows the instruction editor (it's the
+/// instruction); preset tones expose it as an optional override.
+private struct RewriteBindingRow: View {
+    @Binding var binding: RewriteBinding
+    let onChangeHotkey: () -> Void
+    let onDelete: () -> Void
+    @State private var showCustom = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Picker("Tone", selection: $binding.tone) {
+                    ForEach(RewriteTone.allCases) { tone in
+                        Text(tone.displayName).tag(tone)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(maxWidth: 200)
+
+                Spacer()
+
+                Text(binding.hotkey.displayLabel)
+                    .font(.system(.body, design: .monospaced))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+
+                Button("Change…") { onChangeHotkey() }
+                    .help("Re-record this hotkey")
+
+                Button(role: .destructive) { onDelete() } label: {
+                    Image(systemName: "minus.circle")
+                }
+                .buttonStyle(.borderless)
+                .help("Remove this rewrite binding")
+            }
+
+            HStack {
+                Toggle(isOn: $showCustom) {
+                    Text(binding.tone == .custom
+                         ? "Custom instruction (required)"
+                         : "Custom instruction (overrides preset)")
+                        .font(.caption)
+                }
+                .toggleStyle(.checkbox)
+                Spacer()
+            }
+
+            if showCustom || !binding.customInstruction.isEmpty || binding.tone == .custom {
+                TextEditor(text: $binding.customInstruction)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(minHeight: 50, maxHeight: 100)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(.separator, lineWidth: 1)
+                    )
+                Text(binding.tone == .custom
+                     ? "Describe the desired tone, e.g. \"warm reply to an angry client, under 2 sentences\"."
+                     : "Optional — overrides the preset's built-in instruction.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -202,6 +202,16 @@ final class SettingsStore {
         }
     }
 
+    /// Contextual-rewrite bindings (v0.7). Each entry = (tone + optional
+    /// custom instruction + hotkey). Defaults to empty — rewrite needs an
+    /// LLM provider the user may not have configured, so nothing is seeded.
+    var rewriteBindings: [RewriteBinding] {
+        didSet {
+            guard rewriteBindings != oldValue else { return }
+            persist(rewriteBindings, forKey: Keys.rewriteBindings)
+        }
+    }
+
     // MARK: Direct providers — DeepL (v0.3)
 
     var deeplAPIKey: String {
@@ -271,6 +281,8 @@ final class SettingsStore {
         static let primaryLanguage = "translator.primaryLanguage"
         static let inboundBinding = "translator.inboundBinding"
         static let outboundBindings = "translator.outboundBindings"
+        // v0.7 contextual rewrite
+        static let rewriteBindings = "translator.rewriteBindings"
         // v0.3 new providers
         static let deeplUseFree = "translator.deepl.useFree"
         static let libreTranslateBaseURL = "translator.libretranslate.baseURL"
@@ -375,6 +387,8 @@ final class SettingsStore {
             ?? .default
         outboundBindings = Self.loadCodable([OutboundBinding].self, defaults: defaults, key: Keys.outboundBindings)
             ?? [.defaultJapaneseFormal, .defaultJapaneseCasual]
+        rewriteBindings = Self.loadCodable([RewriteBinding].self, defaults: defaults, key: Keys.rewriteBindings)
+            ?? []
 
         // v0.3 new providers
         deeplAPIKey = (try? keychain.read(account: Accounts.deeplAPIKey)) ?? ""
@@ -476,6 +490,19 @@ final class SettingsStore {
                 return binding.displayName
             }
         }
+        for binding in rewriteBindings where binding.id != excludeID {
+            if binding.hotkey == hotkey {
+                return binding.displayName
+            }
+        }
         return nil
+    }
+
+    /// `true` when the active provider can perform a tone rewrite. Only
+    /// direct-API LLM providers qualify — backend modes are deferred, and
+    /// DeepL / Google Translate / LibreTranslate cannot rewrite at all.
+    var rewriteAvailable: Bool {
+        guard translationSource == .directAPI else { return false }
+        return directProvider.supportsRewrite
     }
 }

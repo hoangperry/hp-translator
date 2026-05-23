@@ -48,7 +48,7 @@ final class GeminiDirectProvider: TranslationProvider {
 
         let body: [String: Any] = [
             "systemInstruction": [
-                "parts": [["text": PromptBuilder.systemPrompt]]
+                "parts": [["text": PromptBuilder.systemPrompt(for: job)]]
             ],
             "contents": [
                 [

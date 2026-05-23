@@ -18,6 +18,9 @@ final class TranslationWorkflow {
     /// User's primary language (where inbound translations go, source of
     /// outbound translations). BCP47 code, e.g. "vi", "en".
     private let primaryLanguageProvider: @MainActor () -> String
+    /// Whether the active provider can perform a tone rewrite. Gates the
+    /// rewrite hotkey so a non-LLM provider surfaces a clear error.
+    private let rewriteAvailableProvider: @MainActor () -> Bool
 
     /// Production initialiser — wires `providerFactory` to a closure that
     /// resolves the active provider every call.
@@ -30,7 +33,8 @@ final class TranslationWorkflow {
         previewPresenter: PreviewPresenter = PreviewHUDController(),
         glossaryProvider: @escaping @MainActor () -> String = { SettingsStore.shared.glossary },
         focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled },
-        primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage }
+        primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage },
+        rewriteAvailableProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.rewriteAvailable }
     ) {
         self.providerFactory = providerFactory
         self.hudController = hudController
@@ -41,6 +45,7 @@ final class TranslationWorkflow {
         self.glossaryProvider = glossaryProvider
         self.focusGuardEnabledProvider = focusGuardEnabledProvider
         self.primaryLanguageProvider = primaryLanguageProvider
+        self.rewriteAvailableProvider = rewriteAvailableProvider
     }
 
     /// Convenience initialiser for callers that hold a fixed provider —
@@ -55,7 +60,8 @@ final class TranslationWorkflow {
         previewPresenter: PreviewPresenter = PreviewHUDController(),
         glossaryProvider: @escaping @MainActor () -> String = { SettingsStore.shared.glossary },
         focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled },
-        primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage }
+        primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage },
+        rewriteAvailableProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.rewriteAvailable }
     ) {
         self.init(
             providerFactory: { translator },
@@ -66,7 +72,8 @@ final class TranslationWorkflow {
             previewPresenter: previewPresenter,
             glossaryProvider: glossaryProvider,
             focusGuardEnabledProvider: focusGuardEnabledProvider,
-            primaryLanguageProvider: primaryLanguageProvider
+            primaryLanguageProvider: primaryLanguageProvider,
+            rewriteAvailableProvider: rewriteAvailableProvider
         )
     }
 
@@ -208,6 +215,146 @@ final class TranslationWorkflow {
             pasteboard.restore(snapshot)
             hudController.showError(error.localizedDescription)
         }
+    }
+
+    // MARK: - Contextual rewrite (v0.7)
+
+    /// Rewrite the current input line in the binding's tone, then — after
+    /// the user confirms in the preview HUD — paste + send it. Unlike
+    /// `translateAndSend`, rewrite ALWAYS previews: a tone-changed message
+    /// must be reviewed before it goes out.
+    func rewriteAndSend(binding: RewriteBinding) async {
+        guard rewriteAvailableProvider() else {
+            hudController.showError(
+                "Rewrite needs an LLM provider (Gemini, Ollama, or an OpenAI-compatible API). DeepL and Google Translate cannot rewrite."
+            )
+            return
+        }
+        // A `.custom` binding with no instruction would send an empty
+        // `Target tone:` prompt and produce generic output without telling
+        // the user. Fail fast with a settings-pointing message instead.
+        guard !binding.effectiveInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            hudController.showError(RewriteError.emptyCustomInstruction.localizedDescription)
+            return
+        }
+        let translator = providerFactory()
+        guard translator.isConfigured else {
+            hudController.showError(TranslationError.missingEndpoint.localizedDescription)
+            return
+        }
+
+        let style = binding.style(language: primaryLanguageProvider())
+        focusGuard.capture()
+
+        hudController.showLoading("Rewriting message...", persona: style)
+        let snapshot = pasteboard.capture()
+        let previousChangeCount = pasteboard.changeCount
+
+        await keyboard.selectCurrentLineToBeginning()
+        guard await isFocusStillAllowed() else {
+            pasteboard.restore(snapshot)
+            hudController.showError(TranslationError.focusChangedBeforePaste.localizedDescription)
+            return
+        }
+        await keyboard.copySelection()
+
+        guard let sourceText = await pasteboard.waitForCopiedString(after: previousChangeCount)?.trimmedNonEmpty else {
+            pasteboard.restore(snapshot)
+            hudController.showError(TranslationError.emptyClipboard.localizedDescription)
+            return
+        }
+
+        let rewritten: String
+        do {
+            rewritten = try await performRewrite(sourceText: sourceText, style: style, translator: translator)
+        } catch {
+            pasteboard.restore(snapshot)
+            hudController.showError(error.localizedDescription)
+            return
+        }
+
+        // Always preview — never auto-send a tone-changed message.
+        hudController.dismiss()
+        let decision = await previewPresenter.presentPreview(
+            original: sourceText,
+            translated: rewritten,
+            persona: style,
+            isSourceFocused: { [weak self] in
+                guard let self else { return false }
+                guard self.focusGuardEnabledProvider() else { return true }
+                return self.focusGuard.isStillFocused()
+            }
+        )
+
+        let textToSend: String
+        switch decision {
+        case .send(let confirmed):
+            textToSend = confirmed
+        case .cancel:
+            pasteboard.restore(snapshot)
+            hudController.showResult("Cancelled — original text kept", persona: style)
+            return
+        }
+
+        guard await isFocusStillAllowed() else {
+            pasteboard.restore(snapshot)
+            hudController.showError(TranslationError.focusChangedBeforePaste.localizedDescription)
+            return
+        }
+
+        pasteboard.writeString(textToSend)
+        await keyboard.paste()
+
+        guard await isFocusStillAllowed() else {
+            pasteboard.restore(snapshot)
+            hudController.showError(TranslationError.focusChangedAfterPaste.localizedDescription)
+            return
+        }
+
+        await keyboard.enter()
+        restoreClipboard(snapshot)
+        hudController.showResult("Sent \(style.displayName)", persona: style)
+    }
+
+    /// Call the provider, clean the output, and guard against refusals:
+    /// one retry with a stronger anti-refusal instruction, then throw
+    /// `RewriteError.refused` so the caller falls back to the original.
+    private func performRewrite(
+        sourceText: String,
+        style: TranslationStyle,
+        translator: any TranslationProvider
+    ) async throws -> String {
+        let firstJob = TranslationJob(
+            text: sourceText,
+            style: style,
+            sourceLanguage: primaryLanguageProvider(),
+            glossary: glossaryProvider()
+        )
+        let first = RewriteResultProcessor.clean(try await translator.translate(firstJob).translation)
+        if !RewriteResultProcessor.isLikelyRefusal(first) {
+            return first
+        }
+
+        // Retry once — reframe even harder that this is the user's own draft.
+        let retryStyle = TranslationStyle(
+            direction: .rewrite,
+            targetLanguage: style.targetLanguage,
+            register: style.register,
+            customStyleInstruction: style.styleInstruction
+                + "\n\nThis is the user's OWN draft, provided for tone editing only. Rewrite it in the requested tone. Do not decline, do not explain, do not comment.",
+            displayLabelOverride: style.displayLabelOverride
+        )
+        let retryJob = TranslationJob(
+            text: sourceText,
+            style: retryStyle,
+            sourceLanguage: primaryLanguageProvider(),
+            glossary: glossaryProvider()
+        )
+        let second = RewriteResultProcessor.clean(try await translator.translate(retryJob).translation)
+        if !RewriteResultProcessor.isLikelyRefusal(second) {
+            return second
+        }
+        throw RewriteError.refused
     }
 
     private func restoreClipboard(_ snapshot: ClipboardSnapshot) {

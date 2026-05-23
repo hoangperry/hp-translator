@@ -110,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         withObservationTracking {
             _ = settings.inboundBinding
             _ = settings.outboundBindings
+            _ = settings.rewriteBindings
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -121,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func applyHotKeys() {
         let settings = SettingsStore.shared
-        let outbound = settings.outboundBindings.map { binding -> (config: HotkeyConfig, action: @MainActor () -> Void) in
+        var outbound = settings.outboundBindings.map { binding -> (config: HotkeyConfig, action: @MainActor () -> Void) in
             let style = binding.style()
             return (
                 config: binding.hotkey,
@@ -132,6 +133,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             )
         }
+        // Rewrite bindings register as additional hotkeys alongside
+        // outbound — same hotkey shape, different workflow entry point.
+        let rewriteEntries = settings.rewriteBindings.map { binding -> (config: HotkeyConfig, action: @MainActor () -> Void) in
+            (
+                config: binding.hotkey,
+                action: { [weak self] in
+                    Task { @MainActor in
+                        await self?.workflow.rewriteAndSend(binding: binding)
+                    }
+                }
+            )
+        }
+        outbound.append(contentsOf: rewriteEntries)
         hotKeyManager.register(
             inbound: settings.inboundBinding.hotkey,
             inboundAction: { [weak self] in

@@ -14,6 +14,72 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.7.0] — 2026-05-23
+
+**New feature: Contextual rewrite.** Bind a hotkey to a tone (Polite,
+Professional, De-escalate, Friendly, Firm-but-polite, Concise, or a
+free-text custom tone) and the app rewrites the current input line in
+that tone — **same language**, intent preserved. Built for the moment
+you typed something blunt or angry and need to soften it before
+sending. Always shows a preview HUD before sending — never auto-paste.
+
+### Added
+
+- **`TranslationDirection.rewrite`** — a third direction alongside
+  inbound/outbound. The `PromptBuilder.rewriteSystemPrompt` carries
+  Vietnamese few-shot examples that (a) demonstrate the tone shift and
+  (b) reframe the input as the user's own draft so the model doesn't
+  refuse on profanity.
+- **`RewriteBinding`** + **`RewriteTone`** (`RewriteModels.swift`) —
+  6 preset tones + `.custom` (free-text). Per-binding optional
+  override on the preset's built-in instruction.
+- **`SettingsStore.rewriteBindings`** persisted under a new
+  `translator.rewriteBindings` UserDefaults key (default `[]` — zero
+  migration risk).
+- **`TranslationWorkflow.rewriteAndSend`** — clones the
+  `translateAndSend` capture/paste machinery but always opens the
+  preview HUD and routes through the new rewrite prompt path.
+- **`RewriteResultProcessor`** — strips code fences / leading labels /
+  outer quotes from raw LLM output, and detects refusal/moralizing
+  replies via first-person markers (anchored to the prefix so a
+  legitimate rewrite containing "không thể" mid-sentence is not flagged).
+- **Refusal handling** — one automatic retry with a stronger
+  anti-refusal prompt; if the model still declines, the workflow throws
+  `RewriteError.refused`, restores the clipboard, and shows an error.
+  The user's original text is never overwritten by a refusal.
+- **Settings UI** — a new "Contextual rewrite" section with
+  `RewriteBindingRow` (tone picker + custom instruction editor +
+  hotkey recorder + delete) and an inline warning when the active
+  provider can't rewrite.
+
+### Changed
+
+- **`PromptBuilder.systemPrompt(for: job)`** routes between the
+  translation system prompt and the rewrite system prompt. All five
+  LLM providers (Gemini, OpenAI-compatible, Ollama, Gemini-CLI,
+  Codex-CLI) updated; non-LLM providers (DeepL, Google Translate,
+  LibreTranslate) gated out via `DirectProviderKind.supportsRewrite`
+  and `SettingsStore.rewriteAvailable`.
+- **`AppDelegate.applyHotKeys`** registers rewrite-binding hotkeys
+  alongside outbound bindings; `observeBindingsOnce` now tracks
+  `rewriteBindings` so changes re-register immediately.
+- **`TranslationStyle.displayLabelOverride`** — optional label
+  override so the HUD surfaces the tone name ("De-escalate rewrite")
+  for `.rewrite` jobs instead of a language-derived label.
+
+### Build
+
+- Bundle 0.7.0 (build 18).
+
+### Tests
+
+- App: **218 Swift / 49 suites** GREEN (190 pre-existing + 28 new).
+  Coverage: tone display, instructions, codable round-trips,
+  `supportsRewrite`, settings persistence, `rewriteAvailable` gate,
+  `systemPrompt(for:)` routing, rewrite user-prompt shape, few-shot
+  presence, refusal detection (EN + VN + empty), anti-false-positive
+  (rewrite containing "không thể"), label/fence/quote stripping.
+
 ## [0.6.3] — 2026-05-22
 
 Fixes the Liquid Glass adoption. v0.6.1/v0.6.2 made the onboarding and

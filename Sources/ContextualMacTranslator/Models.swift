@@ -4,6 +4,9 @@ import Foundation
 enum TranslationDirection: String, Codable, Sendable {
     case inbound
     case outbound
+    /// Same-language tone rewrite — not a translation. The provider keeps
+    /// the input language and only changes tone/delivery. See `RewriteBinding`.
+    case rewrite
 }
 
 /// Formality level / register applied to outbound translations. The
@@ -55,17 +58,23 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
     /// instead of the derived (lang, register) instruction. Empty string
     /// = use the derived default.
     let customStyleInstruction: String
+    /// Optional human label override. Rewrite uses this to surface the
+    /// tone name ("Polite", "De-escalate") in the HUD instead of a
+    /// language-derived label. `nil` = derive the label normally.
+    let displayLabelOverride: String?
 
     init(
         direction: TranslationDirection,
         targetLanguage: String,
         register: Register,
-        customStyleInstruction: String = ""
+        customStyleInstruction: String = "",
+        displayLabelOverride: String? = nil
     ) {
         self.direction = direction
         self.targetLanguage = targetLanguage
         self.register = register
         self.customStyleInstruction = customStyleInstruction
+        self.displayLabelOverride = displayLabelOverride
     }
 
     var languageDisplayName: String {
@@ -74,6 +83,9 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
 
     /// Human-readable label used in HUD title + Settings rows.
     var displayName: String {
+        if let displayLabelOverride, !displayLabelOverride.isEmpty {
+            return displayLabelOverride
+        }
         let lang = languageDisplayName
         switch direction {
         case .inbound:
@@ -83,11 +95,14 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
                 return "\(lang) (\(label))"
             }
             return lang
+        case .rewrite:
+            return "Rewrite"
         }
     }
 
     /// Short badge for the HUD persona indicator.
     var displayBadge: String {
+        if direction == .rewrite { return "✎" }
         switch (targetLanguage, register, direction) {
         case ("ja", .formal, .outbound): return "敬語"
         case ("ja", .casual, .outbound): return "カジュアル"
@@ -526,6 +541,19 @@ enum DirectProviderKind: String, Codable, CaseIterable, Identifiable, Sendable {
             return "Spawns `codex exec` per request — slower; useful when you already have a Codex login."
         case .mock:
             return "Returns `[language] text` without calling any API. Useful for smoke tests."
+        }
+    }
+
+    /// `true` when this provider can perform a same-language tone rewrite.
+    /// Only instruction-following LLM providers qualify — DeepL, Google
+    /// Translate, and LibreTranslate are machine-translation only and
+    /// have no way to follow a free-form "rewrite in this tone" prompt.
+    var supportsRewrite: Bool {
+        switch self {
+        case .gemini, .ollama, .openAICompatible, .geminiCLI, .codexCLI, .mock:
+            return true
+        case .deepl, .libreTranslate, .googleTranslate:
+            return false
         }
     }
 }

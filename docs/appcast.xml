@@ -8,6 +8,24 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.7.0</title>
+      <pubDate>Sat, 23 May 2026 23:18:45 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Contextual rewrite — same-language tone shift on a hotkey</h2>
+        <p>Bind a hotkey to a tone (Polite, Professional, De-escalate, Friendly, Firm-but-polite, Concise, or a free-text custom tone) and the app rewrites the current input line in that tone, in the SAME language. Built for the moment you typed something blunt or angry and need to soften it before sending. Always shows a preview HUD before sending — never auto-paste.</p>
+        <p>Vietnamese-aware: the prompt preserves your anh/chị/em pronouns and adds politeness particles (ạ / dạ / nhé) as the tone requires.</p>
+        <p>Setup: Settings → "Contextual rewrite" → Add binding. Needs an LLM provider (Gemini, Ollama, OpenAI-compatible); DeepL and Google Translate cannot rewrite — Settings warns when the active provider can't.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.7.0">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.7.0/Contextual-Mac-Translator-v0.7.0-macos-arm64.zip"
+        sparkle:version="18"
+        sparkle:shortVersionString="0.7.0"
+        sparkle:edSignature="wSHbMwy9fLYVmFljtI9SYTthEbVdCg8TKryYyjOGZ9hUl1Kx+pzjG5ZS4TR0FIzXriicmyWhDZnJolzyEdS4DA==" length="1859011"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.6.3</title>
       <pubDate>Fri, 22 May 2026 16:16:01 +0700</pubDate>
       <description><![CDATA[

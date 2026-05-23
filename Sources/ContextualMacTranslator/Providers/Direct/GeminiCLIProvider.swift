@@ -33,7 +33,7 @@ final class GeminiCLIProvider: TranslationProvider {
     func translate(_ job: TranslationJob) async throws -> TranslationResult {
         guard isConfigured else { throw TranslationError.missingEndpoint }
 
-        let prompt = "\(PromptBuilder.systemPrompt)\n\n\(PromptBuilder.userPrompt(for: job))"
+        let prompt = "\(PromptBuilder.systemPrompt(for: job))\n\n\(PromptBuilder.userPrompt(for: job))"
         var arguments: [String] = []
         if !config.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             arguments.append(contentsOf: ["-m", config.model])

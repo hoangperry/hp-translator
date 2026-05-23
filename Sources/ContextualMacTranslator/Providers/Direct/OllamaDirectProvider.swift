@@ -49,7 +49,7 @@ final class OllamaDirectProvider: TranslationProvider {
 
         let body: [String: Any] = [
             "model": config.model,
-            "system": PromptBuilder.systemPrompt,
+            "system": PromptBuilder.systemPrompt(for: job),
             "prompt": PromptBuilder.userPrompt(for: job),
             "stream": false,
             "options": [
