@@ -14,6 +14,63 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.8.2] — 2026-05-24
+
+**New tone: "Chửi thề" (casual-raw).** Opt-in expressive rewrite tone
+that matches Vietnamese close-friends chat register — uses profanity
+markers like vl/vcl/đm as natural intensifiers (the "as hell" / "af"
+of Vietnamese internet writing). Hidden behind a Settings toggle
+default OFF; gated by a confirmation dialog when enabled. Routes
+through Gemini with `safetySettings = BLOCK_NONE` so the model
+doesn't refuse profanity-flavoured drafts.
+
+### Added
+
+- **`RewriteTone.casualRaw`** ("Chửi thề") — Vietnamese-aware tone
+  instruction that emphasises **abbreviated** profanity forms (vl /
+  vcl / đm) over spelled-out vulgar phrases, and carves out hard
+  safety rules: never add slurs, never attack identity, never add
+  personal insults not in the input.
+- **`SettingsStore.expressiveTonesEnabled`** — default OFF. Persists
+  under `translator.expressiveTonesEnabled`. Gates whether
+  `.casualRaw` appears in the picker + binding dropdowns.
+- **`RewriteTone.available(expressive:)`** — single helper used by
+  both `TonePickerController` and `RewriteBindingRow` so the visibility
+  gate lives in one place.
+- **`TranslationStyle.allowsExpressiveContent`** — flag that rides
+  through on the style. `GeminiDirectProvider` reads it and attaches
+  `safetySettings = BLOCK_NONE` for the four adjustable categories
+  (HARASSMENT, HATE_SPEECH, SEXUALLY_EXPLICIT, DANGEROUS_CONTENT) —
+  the non-adjustable CSAM / election filters remain enforced.
+- **Settings UI** — toggle "Enable expressive tones (Chửi thề)" in
+  the Contextual rewrite section. Flipping OFF → ON triggers a
+  SwiftUI `.alert` explaining the tone's intent (friends, not
+  customers; preview always shown; some providers may refuse) with
+  Continue / Cancel. Cancel reverts cleanly without persisting.
+- **`RewriteBindingRow`** filters its tone Picker by the toggle —
+  but always shows the row's current tone even if it became
+  expressive after toggle was turned off, so users can see what's
+  bound without surprise.
+
+### Notes
+
+- Workflow-level consent (NSAlert mid-flow) was **not** added — it
+  would activate the app and break the source-app focus contract,
+  causing paste to land in the wrong field. The Settings-level
+  toggle is the consent point.
+
+### Build
+
+- Bundle 0.8.2 (build 22).
+
+### Tests
+
+- App: **250 Swift / 53 suites** GREEN in isolation (242 from v0.8.1
+  + 8 new for casualRaw + expressive flag + Gemini permissive safety
+  + Settings persistence). One pre-existing flaky test in
+  `SupabaseAuthViewModel — input validation` continues to fail in
+  full-suite runs but passes in isolation — same since v0.5.x.
+
 ## [0.8.1] — 2026-05-24
 
 Code-review polish on top of v0.8.0 (LOW findings). No behaviour change.

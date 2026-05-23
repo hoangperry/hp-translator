@@ -8,6 +8,24 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.8.2</title>
+      <pubDate>Sun, 24 May 2026 03:29:46 +0700</pubDate>
+      <description><![CDATA[
+        <h2>New tone: "Chửi thề" (casual-raw)</h2>
+        <p>Opt-in Vietnamese close-friends register. Uses profanity markers like vl / vcl / đm as natural intensifiers (the "as hell" / "af" of Vietnamese internet writing), preferring abbreviated forms. Identity-safe — never adds slurs or attacks identity.</p>
+        <p>Hidden behind <strong>Settings → Contextual rewrite → Enable expressive tones (Chửi thề)</strong> with a confirmation dialog. Routes through Gemini with <code>safetySettings = BLOCK_NONE</code> so the model doesn't refuse profanity-flavoured drafts. Other providers may refuse — the existing refusal-detection retry kicks in.</p>
+        <p>For chats with friends, not customers. Every rewrite still shows in preview before sending.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.8.2">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.8.2/Contextual-Mac-Translator-v0.8.2-macos-arm64.zip"
+        sparkle:version="22"
+        sparkle:shortVersionString="0.8.2"
+        sparkle:edSignature="ENyoNFEYpb4f0EQGLCZFf2Wf6/pJsfCYzhBBIZD3e/vNqzv1oivyoYjzVfbNw5g4D9VXmoTb9o5ugoCaXDgYDQ==" length="1935491"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.8.1</title>
       <pubDate>Sun, 24 May 2026 03:04:47 +0700</pubDate>
       <description><![CDATA[

@@ -35,6 +35,7 @@ struct SettingsView: View {
     @State private var outboundRecorderID: UUID?
     @State private var rewriteRecorderID: UUID?
     @State private var pickerRecorderShown = false
+    @State private var expressiveTonePromptShown = false
     @State private var cloudAuth: SupabaseAuthViewModel
 
     init(permissionManager: PermissionManager) {
@@ -492,6 +493,36 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            // v0.8.2 — opt-in to "Chửi thề" (casual-raw friend register).
+            // Default OFF; flipping ON shows a confirmation alert so the
+            // user knows the tone is intended for friends, not customers.
+            Toggle(isOn: Binding<Bool>(
+                get: { settings.expressiveTonesEnabled },
+                set: { newValue in
+                    if newValue && !settings.expressiveTonesEnabled {
+                        // Defer the actual toggle to the alert's
+                        // "Continue" handler so Cancel reverts cleanly.
+                        expressiveTonePromptShown = true
+                    } else {
+                        settings.expressiveTonesEnabled = newValue
+                    }
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Enable expressive tones (Chửi thề)")
+                    Text("Adds a casual-raw friend register that uses vl/vcl/đm as intensifiers. Intended for chats with close friends, not customer or work messages.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .alert("Use expressive tones?", isPresented: $expressiveTonePromptShown) {
+                Button("Continue") { settings.expressiveTonesEnabled = true }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This adds the \"Chửi thề\" tone — a casual-with-edge rewrite for close-friends Vietnamese chat, using profanity markers like vl/vcl/đm as natural intensifiers. The rewrite always shows in a preview before sending. Make sure your active provider supports this (Gemini works out of the box; some providers may refuse). You can turn this off any time.")
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Rewrite bindings")
@@ -502,6 +533,7 @@ struct SettingsView: View {
                 ForEach($settings.rewriteBindings) { $binding in
                     RewriteBindingRow(
                         binding: $binding,
+                        expressiveEnabled: settings.expressiveTonesEnabled,
                         onChangeHotkey: { rewriteRecorderID = binding.id },
                         onDelete: { removeRewriteBinding(binding) }
                     )
@@ -706,15 +738,27 @@ private struct OutboundBindingRow: View {
 /// instruction); preset tones expose it as an optional override.
 private struct RewriteBindingRow: View {
     @Binding var binding: RewriteBinding
+    /// Reflects `SettingsStore.expressiveTonesEnabled` — the parent
+    /// passes it through so this row's tone dropdown hides expressive
+    /// tones unless the user has opted in. If the row's current tone is
+    /// expressive but the toggle is OFF, that tone is still shown as the
+    /// current selection (so the user can see what's bound) but no other
+    /// expressive option appears.
+    let expressiveEnabled: Bool
     let onChangeHotkey: () -> Void
     let onDelete: () -> Void
     @State private var showCustom = false
+
+    private var visibleTones: [RewriteTone] {
+        let base = RewriteTone.available(expressive: expressiveEnabled)
+        return base.contains(binding.tone) ? base : base + [binding.tone]
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Picker("Tone", selection: $binding.tone) {
-                    ForEach(RewriteTone.allCases) { tone in
+                    ForEach(visibleTones) { tone in
                         Text(tone.displayName).tag(tone)
                     }
                 }

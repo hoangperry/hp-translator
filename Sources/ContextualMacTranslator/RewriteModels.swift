@@ -12,6 +12,11 @@ enum RewriteTone: String, Codable, CaseIterable, Identifiable, Sendable {
     case deEscalate
     case concise
     case custom
+    /// "Chửi thề" — casual-with-edge friend register. Hidden unless the
+    /// user opts in via `SettingsStore.expressiveTonesEnabled`. Routes
+    /// through Gemini with `safetySettings = BLOCK_NONE` so the model
+    /// doesn't refuse on profanity-flavoured Vietnamese chat.
+    case casualRaw
 
     var id: String { rawValue }
 
@@ -25,7 +30,23 @@ enum RewriteTone: String, Codable, CaseIterable, Identifiable, Sendable {
         case .deEscalate:    return "De-escalate"
         case .concise:       return "Concise"
         case .custom:        return "Custom"
+        case .casualRaw:     return "Chửi thề"
         }
+    }
+
+    /// Tones that the user must explicitly opt into (Settings toggle
+    /// "Enable expressive tones"). Hidden from the picker + binding
+    /// dropdowns until then; routed to a permissive provider config
+    /// when used.
+    var isExpressive: Bool {
+        self == .casualRaw
+    }
+
+    /// Build the visible-tone list based on the expressive toggle.
+    /// Picker + Settings binding row both read this so the gating
+    /// stays in one place.
+    static func available(expressive: Bool) -> [RewriteTone] {
+        expressive ? allCases : allCases.filter { !$0.isExpressive }
     }
 
     /// LLM instruction describing the target tone. For `.custom` this is
@@ -46,6 +67,10 @@ enum RewriteTone: String, Codable, CaseIterable, Identifiable, Sendable {
             return "Rewrite the message as short and direct as possible without losing any fact, number, or request. Cut filler; keep one clear point."
         case .custom:
             return ""
+        case .casualRaw:
+            return """
+            Rewrite the message as a close-friends-only Vietnamese chat. Match the casual register including profanity markers (vl, vcl, đm, đéo) as natural intensifiers — these are not literal swears in this register, they function like "as hell" or "af" in English. PREFER the abbreviated forms (vl / vcl / đm) over the spelled-out vulgar phrases. Preserve the writer's intent, information, and existing anh/chị/em pronouns. NEVER add slurs, NEVER attack identity (race, gender, origin, appearance), NEVER add personal insults that aren't already in the input. If the input is not aimed at a specific person, keep it that way. Return only the rewritten message in the same language.
+            """
         }
     }
 }
@@ -96,13 +121,18 @@ struct RewriteBinding: Codable, Equatable, Identifiable, Hashable, Sendable {
     /// Build the `TranslationStyle` for a rewrite job. `language` is the
     /// user's primary language — only a hint; the rewrite prompt pins the
     /// output to the *input's* language regardless.
+    ///
+    /// `allowsExpressiveContent` rides through on the style so providers
+    /// can opt into a permissive safety config (Gemini `BLOCK_NONE`)
+    /// only when the user has explicitly picked an expressive tone.
     func style(language: String) -> TranslationStyle {
         TranslationStyle(
             direction: .rewrite,
             targetLanguage: language,
             register: .neutral,
             customStyleInstruction: effectiveInstruction,
-            displayLabelOverride: displayName
+            displayLabelOverride: displayName,
+            allowsExpressiveContent: tone.isExpressive
         )
     }
 

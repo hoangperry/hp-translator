@@ -62,19 +62,27 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
     /// tone name ("Polite", "De-escalate") in the HUD instead of a
     /// language-derived label. `nil` = derive the label normally.
     let displayLabelOverride: String?
+    /// `true` for expressive rewrite tones (e.g. `.casualRaw` / "Chửi
+    /// thề") where the user has explicitly opted in to profanity-aware
+    /// rewriting. Providers should relax content-safety thresholds for
+    /// these requests (e.g. Gemini `safetySettings = BLOCK_NONE`).
+    /// Default `false`: all existing call sites stay strict.
+    let allowsExpressiveContent: Bool
 
     init(
         direction: TranslationDirection,
         targetLanguage: String,
         register: Register,
         customStyleInstruction: String = "",
-        displayLabelOverride: String? = nil
+        displayLabelOverride: String? = nil,
+        allowsExpressiveContent: Bool = false
     ) {
         self.direction = direction
         self.targetLanguage = targetLanguage
         self.register = register
         self.customStyleInstruction = customStyleInstruction
         self.displayLabelOverride = displayLabelOverride
+        self.allowsExpressiveContent = allowsExpressiveContent
     }
 
     var languageDisplayName: String {

@@ -46,7 +46,7 @@ final class GeminiDirectProvider: TranslationProvider {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(config.apiKey, forHTTPHeaderField: "x-goog-api-key")
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "systemInstruction": [
                 "parts": [["text": PromptBuilder.systemPrompt(for: job)]]
             ],
@@ -61,6 +61,14 @@ final class GeminiDirectProvider: TranslationProvider {
                 "maxOutputTokens": config.maxOutputTokens,
             ],
         ]
+        // v0.8.2: when the workflow signals an expressive rewrite tone
+        // (e.g. "Chửi thề"), relax Gemini's safety thresholds so the
+        // model doesn't refuse profanity-flavoured casual Vietnamese.
+        // Google explicitly documents BLOCK_NONE for creative-writing
+        // use cases. Strict default for every other request remains.
+        if job.style.allowsExpressiveContent {
+            body["safetySettings"] = Self.permissiveSafetySettings
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, http) = try await HTTPClient.send(request, endpoint: endpoint, session: session)
@@ -71,6 +79,17 @@ final class GeminiDirectProvider: TranslationProvider {
         let translation = try Self.extractTranslation(from: data)
         return TranslationResult(translation: PromptBuilder.normalize(translation))
     }
+
+    /// Gemini `safetySettings` block used when
+    /// `style.allowsExpressiveContent` is true. The four adjustable
+    /// categories are explicitly set to `BLOCK_NONE`; the non-adjustable
+    /// safety filters (CSAM, election integrity) remain enforced.
+    nonisolated static let permissiveSafetySettings: [[String: String]] = [
+        ["category": "HARM_CATEGORY_HARASSMENT",        "threshold": "BLOCK_NONE"],
+        ["category": "HARM_CATEGORY_HATE_SPEECH",       "threshold": "BLOCK_NONE"],
+        ["category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"],
+        ["category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"],
+    ]
 
     /// Walk Gemini's `candidates[*].content.parts[*].text` shape and
     /// return the first non-empty concatenation. Throws

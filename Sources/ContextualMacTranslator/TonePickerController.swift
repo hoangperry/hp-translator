@@ -72,7 +72,11 @@ final class TonePickerController: TonePickerPresenter {
         isSourceFocused: @escaping @MainActor () -> Bool,
         continuation: CheckedContinuation<RewriteTone?, Never>
     ) {
-        let model = TonePickerViewModel()
+        // Filter the visible tones by the expressive opt-in toggle so
+        // "Chửi thề" (casual-raw) only appears for users who explicitly
+        // enabled it in Settings.
+        let items = RewriteTone.available(expressive: SettingsStore.shared.expressiveTonesEnabled)
+        let model = TonePickerViewModel(items: items)
         currentModel = model
 
         // `resolved` guards against double-resume — every dismissal path

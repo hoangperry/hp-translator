@@ -225,6 +225,18 @@ final class SettingsStore {
         }
     }
 
+    /// Opt-in to expressive rewrite tones (v0.8.2 — "Chửi thề" / casual
+    /// raw). Default OFF: only neutral tones (Polite, Professional, …)
+    /// show up in the picker + binding dropdowns until enabled. The
+    /// Settings UI guards the OFF→ON transition with a confirmation
+    /// dialog, so toggling this property on by itself implies consent.
+    var expressiveTonesEnabled: Bool {
+        didSet {
+            guard expressiveTonesEnabled != oldValue else { return }
+            defaults.set(expressiveTonesEnabled, forKey: Keys.expressiveTonesEnabled)
+        }
+    }
+
     // MARK: Direct providers — DeepL (v0.3)
 
     var deeplAPIKey: String {
@@ -298,6 +310,8 @@ final class SettingsStore {
         static let rewriteBindings = "translator.rewriteBindings"
         // v0.8 tone picker hotkey
         static let pickerHotkey = "translator.pickerHotkey"
+        // v0.8.2 expressive tones (Chửi thề)
+        static let expressiveTonesEnabled = "translator.expressiveTonesEnabled"
         // v0.3 new providers
         static let deeplUseFree = "translator.deepl.useFree"
         static let libreTranslateBaseURL = "translator.libretranslate.baseURL"
@@ -405,6 +419,10 @@ final class SettingsStore {
         rewriteBindings = Self.loadCodable([RewriteBinding].self, defaults: defaults, key: Keys.rewriteBindings)
             ?? []
         pickerHotkey = Self.loadCodable(HotkeyConfig.self, defaults: defaults, key: Keys.pickerHotkey)
+
+        // v0.8.2 expressive tones — default OFF; the Settings toggle
+        // shows a confirmation dialog before flipping it on.
+        expressiveTonesEnabled = defaults.object(forKey: Keys.expressiveTonesEnabled) as? Bool ?? false
 
         // v0.3 new providers
         deeplAPIKey = (try? keychain.read(account: Accounts.deeplAPIKey)) ?? ""

@@ -178,6 +178,83 @@ struct RewriteSettingsTests {
 
         #expect(store.bindingLabel(usingHotkey: hotkey) == "Tone picker")
     }
+
+    @Test("expressiveTonesEnabled defaults to false and persists when toggled")
+    func expressiveTonesDefaultAndPersist() {
+        let defaults = makeDefaults("expressive-default")
+        let keychain = makeKeychain()
+        let store = SettingsStore(defaults: defaults, keychain: keychain)
+        #expect(store.expressiveTonesEnabled == false)
+
+        store.expressiveTonesEnabled = true
+        let reloaded = SettingsStore(defaults: defaults, keychain: keychain)
+        #expect(reloaded.expressiveTonesEnabled == true)
+    }
+}
+
+@Suite("Expressive tones")
+struct ExpressiveTonesTests {
+    @Test("casualRaw is marked expressive; preset tones are not")
+    func expressiveFlag() {
+        #expect(RewriteTone.casualRaw.isExpressive == true)
+        for tone in RewriteTone.allCases where tone != .casualRaw {
+            #expect(tone.isExpressive == false)
+        }
+    }
+
+    @Test("available(expressive: false) hides casualRaw")
+    func availableHidesCasualRaw() {
+        let visible = RewriteTone.available(expressive: false)
+        #expect(!visible.contains(.casualRaw))
+        for tone in RewriteTone.allCases where !tone.isExpressive {
+            #expect(visible.contains(tone))
+        }
+    }
+
+    @Test("available(expressive: true) includes casualRaw")
+    func availableIncludesCasualRaw() {
+        #expect(RewriteTone.available(expressive: true) == RewriteTone.allCases)
+    }
+
+    @Test("casualRaw binding sets allowsExpressiveContent on style")
+    func styleCarriesExpressiveFlag() {
+        let binding = RewriteBinding(tone: .casualRaw, hotkey: .defaultInbound)
+        let style = binding.style(language: "vi")
+        #expect(style.allowsExpressiveContent == true)
+    }
+
+    @Test("Non-expressive binding does NOT set allowsExpressiveContent")
+    func nonExpressiveStyleClean() {
+        let binding = RewriteBinding(tone: .polite, hotkey: .defaultInbound)
+        let style = binding.style(language: "vi")
+        #expect(style.allowsExpressiveContent == false)
+    }
+
+    @Test("Gemini permissive safety settings cover all 4 adjustable categories")
+    func geminiPermissiveSafetyShape() {
+        let settings = GeminiDirectProvider.permissiveSafetySettings
+        let categories = Set(settings.compactMap { $0["category"] })
+        #expect(categories == Set([
+            "HARM_CATEGORY_HARASSMENT",
+            "HARM_CATEGORY_HATE_SPEECH",
+            "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            "HARM_CATEGORY_DANGEROUS_CONTENT",
+        ]))
+        for entry in settings {
+            #expect(entry["threshold"] == "BLOCK_NONE")
+        }
+    }
+
+    @Test("casualRaw instruction emphasises Vietnamese abbreviated profanity markers")
+    func casualRawInstructionHasVietnameseGuidance() {
+        let instruction = RewriteTone.casualRaw.instruction
+        #expect(instruction.contains("vl"))
+        #expect(instruction.contains("vcl"))
+        #expect(instruction.contains("đm"))
+        // Identity-attack safety carve-out must be present.
+        #expect(instruction.localizedCaseInsensitiveContains("slur"))
+        #expect(instruction.localizedCaseInsensitiveContains("identity"))
+    }
 }
 
 @Suite("Rewrite prompt")
