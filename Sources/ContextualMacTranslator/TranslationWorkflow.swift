@@ -202,8 +202,13 @@ final class TranslationWorkflow {
             // `Return`. The error message reflects that reality so the user
             // knows to review the target app instead of assuming nothing
             // happened. (Code review finding R-H1.)
+            //
+            // Use the *delayed* restore (700 ms) on this post-paste path so
+            // the target app has fully consumed the pasteboard before we
+            // overwrite it with the snapshot — otherwise a slow app could
+            // pick up the old snapshot value instead of `textToSend`.
             guard await isFocusStillAllowed() else {
-                pasteboard.restore(snapshot)
+                restoreClipboard(snapshot)
                 hudController.showError(TranslationError.focusChangedAfterPaste.localizedDescription)
                 return
             }
@@ -305,8 +310,11 @@ final class TranslationWorkflow {
         pasteboard.writeString(textToSend)
         await keyboard.paste()
 
+        // Delayed restore on the post-paste error path — same reasoning as
+        // `translateAndSend`: let the target app finish consuming the
+        // pasteboard before we overwrite it with the snapshot.
         guard await isFocusStillAllowed() else {
-            pasteboard.restore(snapshot)
+            restoreClipboard(snapshot)
             hudController.showError(TranslationError.focusChangedAfterPaste.localizedDescription)
             return
         }

@@ -111,6 +111,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             _ = settings.inboundBinding
             _ = settings.outboundBindings
             _ = settings.rewriteBindings
+            // Provider/source changes also affect whether rewrite hotkeys
+            // get registered (see `rewriteAvailable` gate in `applyHotKeys`).
+            _ = settings.translationSource
+            _ = settings.directProvider
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -133,19 +137,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             )
         }
-        // Rewrite bindings register as additional hotkeys alongside
-        // outbound — same hotkey shape, different workflow entry point.
-        let rewriteEntries = settings.rewriteBindings.map { binding -> (config: HotkeyConfig, action: @MainActor () -> Void) in
-            (
-                config: binding.hotkey,
-                action: { [weak self] in
-                    Task { @MainActor in
-                        await self?.workflow.rewriteAndSend(binding: binding)
+        // Rewrite bindings register only when the active provider can
+        // actually rewrite — otherwise the hotkey would just fire and pop
+        // an error every time. Switching back to an LLM provider triggers
+        // a re-register via `observeBindingsOnce` so the hotkey returns.
+        if settings.rewriteAvailable {
+            let rewriteEntries = settings.rewriteBindings.map { binding -> (config: HotkeyConfig, action: @MainActor () -> Void) in
+                (
+                    config: binding.hotkey,
+                    action: { [weak self] in
+                        Task { @MainActor in
+                            await self?.workflow.rewriteAndSend(binding: binding)
+                        }
                     }
-                }
-            )
+                )
+            }
+            outbound.append(contentsOf: rewriteEntries)
         }
-        outbound.append(contentsOf: rewriteEntries)
         hotKeyManager.register(
             inbound: settings.inboundBinding.hotkey,
             inboundAction: { [weak self] in

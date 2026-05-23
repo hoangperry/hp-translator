@@ -8,6 +8,26 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.7.1</title>
+      <pubDate>Sat, 23 May 2026 23:40:33 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Polish for v0.7.0 Contextual Rewrite</h2>
+        <p>Two post-ship review fixes:</p>
+        <ul>
+          <li>Clipboard race on post-paste focus loss — the workflow now uses the 700&nbsp;ms delayed restore so a slow target app can't read the snapshot before consuming the just-pasted text.</li>
+          <li>Rewrite hotkeys are now only registered when the active provider can rewrite (Gemini, Ollama, OpenAI-compatible). Switch to DeepL or Google Translate and the rewrite hotkey unregisters cleanly; switch back and it returns.</li>
+        </ul>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.7.1">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.7.1/Contextual-Mac-Translator-v0.7.1-macos-arm64.zip"
+        sparkle:version="19"
+        sparkle:shortVersionString="0.7.1"
+        sparkle:edSignature="dt/256nxibM06T9vfoUw3MmtQUVwVz1qoUk+dMo47AF8riJuWeQwC8cl4YJLw3S7+RDdAMcinPSJRhPaFjWUDw==" length="1859173"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.7.0</title>
       <pubDate>Sat, 23 May 2026 23:18:45 +0700</pubDate>
       <description><![CDATA[

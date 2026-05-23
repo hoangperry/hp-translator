@@ -14,6 +14,32 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.7.1] — 2026-05-23
+
+Polish on top of v0.7.0. Addresses the post-ship code-review findings.
+
+### Fixed
+
+- **Clipboard race on post-paste focus loss.** Both `translateAndSend`
+  and `rewriteAndSend` now use the *delayed* `restoreClipboard(snapshot)`
+  (700 ms) when the focus-guard fails *after* the paste, instead of the
+  synchronous `pasteboard.restore`. A slow target app could otherwise
+  read the restored snapshot before consuming the just-pasted text.
+- **Rewrite hotkey gated by provider availability.** `applyHotKeys` now
+  skips registering rewrite hotkeys when `SettingsStore.rewriteAvailable`
+  is false (DeepL / Google Translate / LibreTranslate selected). Switching
+  back to an LLM provider re-registers automatically — `observeBindingsOnce`
+  now tracks `translationSource` + `directProvider` too. No more "press
+  hotkey, get an error every time" when the provider can't rewrite.
+
+### Build
+
+- Bundle 0.7.1 (build 19).
+
+### Tests
+
+- App: **220 Swift / 49 suites** GREEN (unchanged from v0.7.0).
+
 ## [0.7.0] — 2026-05-23
 
 **New feature: Contextual rewrite.** Bind a hotkey to a tone (Polite,
