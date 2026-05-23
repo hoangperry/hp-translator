@@ -42,6 +42,18 @@ private func makeViewModel(
     if configured {
         settings.supabaseURL = "https://stub.supabase.co"
         settings.supabaseAnonKey = "anon-key"
+    } else {
+        // SettingsStore.init falls back to ProviderDefaults.supabaseURL when
+        // UserDefaults has no value at the key — so a "fresh" suite is
+        // actually pre-loaded with the production Supabase URL + anon key.
+        // Without these clears, a `.noConfig` test would still make a real
+        // network call (intercepted by VMAuthStubProtocol) and could pick
+        // up a `/otp → 200` route that a parallel `.OTP flow` test
+        // happened to be installing. Explicitly empty both fields so
+        // `SupabaseAuthViewModel.makeService` returns `nil` and `sendCode`
+        // short-circuits to `.error` deterministically.
+        settings.supabaseURL = ""
+        settings.supabaseAnonKey = ""
     }
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [VMAuthStubProtocol.self]
