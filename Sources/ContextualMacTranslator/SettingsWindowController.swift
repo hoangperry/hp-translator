@@ -34,6 +34,7 @@ struct SettingsView: View {
     @State private var inboundRecorderShown = false
     @State private var outboundRecorderID: UUID?
     @State private var rewriteRecorderID: UUID?
+    @State private var pickerRecorderShown = false
     @State private var cloudAuth: SupabaseAuthViewModel
 
     init(permissionManager: PermissionManager) {
@@ -90,6 +91,16 @@ struct SettingsView: View {
                     ownerBindingID: bindingID
                 )
             }
+        }
+        .sheet(isPresented: $pickerRecorderShown) {
+            HotkeyRecorderSheet(
+                hotkey: Binding<HotkeyConfig>(
+                    get: { settings.pickerHotkey ?? HotkeyConfig(keyCode: kVK_Return, modifiers: cmdKey | optionKey) },
+                    set: { settings.pickerHotkey = $0 }
+                ),
+                isPresented: $pickerRecorderShown,
+                ownerBindingID: nil
+            )
         }
     }
 
@@ -444,6 +455,40 @@ struct SettingsView: View {
                 Label("Rewrite needs an LLM provider (Gemini, Ollama, OpenAI-compatible). DeepL and Google Translate cannot rewrite — switch provider above to enable.", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // v0.8 — single hotkey that opens a tone picker popup. Lives
+            // beside the per-binding hotkeys; bind both or just one.
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Tone picker hotkey")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    if let hotkey = settings.pickerHotkey {
+                        Text(hotkey.displayLabel)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                        Button("Change…") { pickerRecorderShown = true }
+                        Button(role: .destructive) {
+                            settings.pickerHotkey = nil
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Disable the picker hotkey")
+                    } else {
+                        Text("Not set")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Set hotkey") { pickerRecorderShown = true }
+                    }
+                }
+                Text("One hotkey, popup picker with every tone — no need to bind each tone separately. Cancel anywhere with Esc.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 

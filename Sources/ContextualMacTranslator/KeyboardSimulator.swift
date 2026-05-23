@@ -26,6 +26,15 @@ final class KeyboardSimulator {
         await pause(milliseconds: 80)
     }
 
+    /// Right-arrow with no modifiers — collapses an active selection to
+    /// its right edge. Used by the picker workflow right after capturing
+    /// the line so the user's next keystroke does not replace their
+    /// draft if they cancel the picker.
+    func collapseSelectionToEnd() async {
+        press(keyCode: CGKeyCode(kVK_RightArrow), flags: [])
+        await pause(milliseconds: 60)
+    }
+
     private func press(keyCode: CGKeyCode, flags: CGEventFlags) {
         let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
         down?.flags = flags

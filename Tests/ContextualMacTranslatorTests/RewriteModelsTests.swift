@@ -142,6 +142,42 @@ struct RewriteSettingsTests {
 
         #expect(store.bindingLabel(usingHotkey: hotkey) == "Friendly rewrite")
     }
+
+    @Test("pickerHotkey defaults to nil and persists when set")
+    func pickerHotkeyDefaultAndPersist() {
+        let defaults = makeDefaults("picker-hotkey")
+        let keychain = makeKeychain()
+        let store = SettingsStore(defaults: defaults, keychain: keychain)
+        #expect(store.pickerHotkey == nil)
+
+        let hotkey = HotkeyConfig(keyCode: 36, modifiers: 2304)  // ⌘⌥⏎
+        store.pickerHotkey = hotkey
+
+        let reloaded = SettingsStore(defaults: defaults, keychain: keychain)
+        #expect(reloaded.pickerHotkey == hotkey)
+    }
+
+    @Test("pickerHotkey clears persisted value when set back to nil")
+    func pickerHotkeyClear() {
+        let defaults = makeDefaults("picker-hotkey-clear")
+        let keychain = makeKeychain()
+        let store = SettingsStore(defaults: defaults, keychain: keychain)
+
+        store.pickerHotkey = HotkeyConfig(keyCode: 36, modifiers: 2304)
+        store.pickerHotkey = nil
+
+        let reloaded = SettingsStore(defaults: defaults, keychain: keychain)
+        #expect(reloaded.pickerHotkey == nil)
+    }
+
+    @Test("bindingLabel detects the picker hotkey collision")
+    func bindingLabelDetectsPickerHotkey() {
+        let store = SettingsStore(defaults: makeDefaults("picker-conflict"), keychain: makeKeychain())
+        let hotkey = HotkeyConfig(keyCode: 36, modifiers: 2304)
+        store.pickerHotkey = hotkey
+
+        #expect(store.bindingLabel(usingHotkey: hotkey) == "Tone picker")
+    }
 }
 
 @Suite("Rewrite prompt")

@@ -212,6 +212,19 @@ final class SettingsStore {
         }
     }
 
+    /// Single global hotkey that opens the tone picker (v0.8). `nil` means
+    /// the picker is disabled — the user explicitly assigns it in Settings.
+    var pickerHotkey: HotkeyConfig? {
+        didSet {
+            guard pickerHotkey != oldValue else { return }
+            if let pickerHotkey {
+                persist(pickerHotkey, forKey: Keys.pickerHotkey)
+            } else {
+                defaults.removeObject(forKey: Keys.pickerHotkey)
+            }
+        }
+    }
+
     // MARK: Direct providers — DeepL (v0.3)
 
     var deeplAPIKey: String {
@@ -283,6 +296,8 @@ final class SettingsStore {
         static let outboundBindings = "translator.outboundBindings"
         // v0.7 contextual rewrite
         static let rewriteBindings = "translator.rewriteBindings"
+        // v0.8 tone picker hotkey
+        static let pickerHotkey = "translator.pickerHotkey"
         // v0.3 new providers
         static let deeplUseFree = "translator.deepl.useFree"
         static let libreTranslateBaseURL = "translator.libretranslate.baseURL"
@@ -389,6 +404,7 @@ final class SettingsStore {
             ?? [.defaultJapaneseFormal, .defaultJapaneseCasual]
         rewriteBindings = Self.loadCodable([RewriteBinding].self, defaults: defaults, key: Keys.rewriteBindings)
             ?? []
+        pickerHotkey = Self.loadCodable(HotkeyConfig.self, defaults: defaults, key: Keys.pickerHotkey)
 
         // v0.3 new providers
         deeplAPIKey = (try? keychain.read(account: Accounts.deeplAPIKey)) ?? ""
@@ -494,6 +510,9 @@ final class SettingsStore {
             if binding.hotkey == hotkey {
                 return binding.displayName
             }
+        }
+        if let pickerHotkey, pickerHotkey == hotkey {
+            return "Tone picker"
         }
         return nil
     }

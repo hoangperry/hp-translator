@@ -14,6 +14,67 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.8.0] — 2026-05-24
+
+**New feature: Tone picker hotkey.** Bind ONE global hotkey to open a
+popup picker listing every tone (Polite, Professional, Friendly,
+Firm-but-polite, De-escalate, Concise, Custom). Pick a tone with
+arrow keys, `Return`, type-to-filter, or `⌘+1-7` quick-select; the
+app rewrites the current input line in that tone and previews it
+before sending. Hybrid with v0.7's per-binding model — both coexist.
+
+### Added
+
+- **`PickerPanel` + `TonePickerView` + `TonePickerViewModel`**
+  (`TonePickerView.swift`) — non-activating `NSPanel` subclass with
+  routed key handling (Esc / Return / ↑↓ / ⌘+digit); SwiftUI view with
+  type-to-filter, pill rows, ⌘N badges, Liquid Glass background.
+- **`TonePickerController`** (`TonePickerController.swift`) — clones
+  the `PreviewHUDController` pattern: focus-loss timeout (5 s), dwell
+  timeout (20 s), click-outside global event monitor, cursor-anchored
+  positioning with screen-bounds clamping.
+- **`SettingsStore.pickerHotkey: HotkeyConfig?`** — single global
+  picker hotkey under `translator.pickerHotkey` (default `nil`).
+  `bindingLabel` extended for conflict detection.
+- **`FocusedElementInspector`** — AX role check via
+  `AXUIElementCopyAttributeValue`. The picker workflow refuses paste
+  into `AXSecureTextField` (password fields) before any keyboard
+  simulation runs, so no draft snapshot leaks into LLM logs.
+- **`TranslationWorkflow.rewriteWithPickerAndSend()`** — Option A
+  capture flow: AX role gate → focusGuard → capture line →
+  Right-Arrow collapse selection → eager clipboard restore → picker
+  → rewrite → Preview HUD → paste. Cancel is a quiet exit.
+- **`KeyboardSimulator.collapseSelectionToEnd()`** — Right-Arrow
+  helper so a cancelled picker doesn't leave the user's draft selected.
+- **Settings UI** — "Tone picker hotkey" row in Contextual rewrite
+  section with recorder + clear button + conflict detection.
+- **AppDelegate** wires the picker hotkey alongside rewrite bindings;
+  re-press while picker is open toggles it closed instead of capturing
+  a second line. `observeBindingsOnce` now tracks `pickerHotkey`.
+
+### Notes / scope-out (deferred to v0.8.1+)
+
+- "Chửi thề" (casual-raw) tone with provider-specific safety routing
+  (Gemini `BLOCK_NONE` + Ollama abliterated fallback + one-time consent
+  toast).
+- Per-binding "In Picker" customization (MVP picker shows all built-in
+  tones).
+- Free-text "Describe the change…" input at the top of the picker.
+- Pre-instantiate the picker panel at launch for <50 ms first paint.
+- VoiceOver elevation + reduce-motion polish.
+
+### Build
+
+- Bundle 0.8.0 (build 20).
+
+### Tests
+
+- App: **243 Swift / 52 suites** GREEN (220 baseline + 23 new picker
+  tests: `PickerPanel.map` key routing, `TonePickerViewModel` handler,
+  filter behaviour, idempotent commit, `FocusedElementInspector` role
+  classification, `SettingsStore.pickerHotkey` persistence + clearing
+  + conflict detection).
+
 ## [0.7.1] — 2026-05-23
 
 Polish on top of v0.7.0. Addresses the post-ship code-review findings.

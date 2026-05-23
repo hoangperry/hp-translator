@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var permissionManager = PermissionManager()
     private lazy var hudController = HUDController()
     private lazy var previewHUDController = PreviewHUDController()
+    private lazy var tonePickerController = TonePickerController()
     private lazy var updaterManager = UpdaterManager()
     private lazy var providerFactory = TranslationProviderFactory(settings: .shared)
     private lazy var workflow = TranslationWorkflow(
@@ -18,7 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hudController: hudController,
         keyboard: KeyboardSimulator(),
         pasteboard: ClipboardService(),
-        previewPresenter: previewHUDController
+        previewPresenter: previewHUDController,
+        pickerPresenter: tonePickerController
     )
     private lazy var hotKeyManager = HotKeyManager()
 
@@ -111,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             _ = settings.inboundBinding
             _ = settings.outboundBindings
             _ = settings.rewriteBindings
+            _ = settings.pickerHotkey
             // Provider/source changes also affect whether rewrite hotkeys
             // get registered (see `rewriteAvailable` gate in `applyHotKeys`).
             _ = settings.translationSource
@@ -153,6 +156,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 )
             }
             outbound.append(contentsOf: rewriteEntries)
+
+            // Tone picker hotkey (v0.8) — re-press while the picker is
+            // already on screen toggles it closed instead of capturing a
+            // second line. Same `rewriteAvailable` gate as bindings.
+            if let pickerHotkey = settings.pickerHotkey {
+                outbound.append((
+                    config: pickerHotkey,
+                    action: { [weak self] in
+                        Task { @MainActor in
+                            guard let self else { return }
+                            if self.tonePickerController.isShowing {
+                                self.tonePickerController.dismissIfShowing()
+                            } else {
+                                await self.workflow.rewriteWithPickerAndSend()
+                            }
+                        }
+                    }
+                ))
+            }
         }
         hotKeyManager.register(
             inbound: settings.inboundBinding.hotkey,

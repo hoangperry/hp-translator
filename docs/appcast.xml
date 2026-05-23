@@ -8,6 +8,25 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.8.0</title>
+      <pubDate>Sun, 24 May 2026 02:52:11 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Tone picker hotkey — one hotkey, every tone</h2>
+        <p>Bind ONE global hotkey to open a popup picker listing every rewrite tone: Polite, Professional, Friendly, Firm-but-polite, De-escalate, Concise, Custom. Pick with arrow keys + Return, type-to-filter, or ⌘ 1-7 quick-select. The app rewrites the current input line in that tone, shows the preview HUD, pastes when you confirm.</p>
+        <p>Hybrid with v0.7's per-binding model — both coexist. Power users keep their muscle-memory hotkeys; the picker scales to the long tail.</p>
+        <p>Privacy-aware: refuses to capture from password fields (AXSecureTextField), so a draft never leaks into LLM logs.</p>
+        <p>Setup: Settings → Contextual rewrite → "Tone picker hotkey" → record your shortcut. Needs an LLM provider (Gemini, Ollama, OpenAI-compatible).</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.8.0">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.8.0/Contextual-Mac-Translator-v0.8.0-macos-arm64.zip"
+        sparkle:version="20"
+        sparkle:shortVersionString="0.8.0"
+        sparkle:edSignature="ZwOiKnF3IALzD2KqT03HRYd00NoxzNX/Id0kVvqA/JUhwSLWx2Ha/bQ9dcxVZRSlCSK1qq7WIj7db7G8XwMXCA==" length="1925980"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.7.1</title>
       <pubDate>Sat, 23 May 2026 23:40:33 +0700</pubDate>
       <description><![CDATA[
