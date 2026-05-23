@@ -68,6 +68,14 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
     /// these requests (e.g. Gemini `safetySettings = BLOCK_NONE`).
     /// Default `false`: all existing call sites stay strict.
     let allowsExpressiveContent: Bool
+    /// v0.8.5 — how many draft variants the LLM should produce in a
+    /// single round-trip. `1` (default) = legacy behaviour: the model
+    /// returns one rewrite, the workflow pastes it after preview.
+    /// `>1` triggers the multi-variant prompt + sentinel parser; the
+    /// PreviewHUD lets the user page through the drafts and pick one.
+    /// Only honoured for `direction == .rewrite` — translation paths
+    /// ignore it.
+    let variantCount: Int
 
     init(
         direction: TranslationDirection,
@@ -75,7 +83,8 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
         register: Register,
         customStyleInstruction: String = "",
         displayLabelOverride: String? = nil,
-        allowsExpressiveContent: Bool = false
+        allowsExpressiveContent: Bool = false,
+        variantCount: Int = 1
     ) {
         self.direction = direction
         self.targetLanguage = targetLanguage
@@ -83,10 +92,29 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
         self.customStyleInstruction = customStyleInstruction
         self.displayLabelOverride = displayLabelOverride
         self.allowsExpressiveContent = allowsExpressiveContent
+        // Clamp to a sane range — the multi-variant prompt requests at
+        // most 5 to keep the response within typical context budgets.
+        self.variantCount = max(1, min(variantCount, 5))
     }
 
     var languageDisplayName: String {
         LanguageCatalog.englishName(for: targetLanguage)
+    }
+
+    /// v0.8.5 — return a copy of this style with a different
+    /// `variantCount`. Lets the rewrite workflow ask for N drafts
+    /// without forcing every style-construction site to know about
+    /// the toggle.
+    func withVariantCount(_ count: Int) -> TranslationStyle {
+        TranslationStyle(
+            direction: direction,
+            targetLanguage: targetLanguage,
+            register: register,
+            customStyleInstruction: customStyleInstruction,
+            displayLabelOverride: displayLabelOverride,
+            allowsExpressiveContent: allowsExpressiveContent,
+            variantCount: count
+        )
     }
 
     /// Human-readable label used in HUD title + Settings rows.

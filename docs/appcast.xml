@@ -8,6 +8,24 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.8.5</title>
+      <pubDate>Sun, 24 May 2026 04:40:03 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Multi-variant rewrite — 3 drafts in one round-trip</h2>
+        <p>Opt-in setting that asks the LLM for three different rewrites in a single call. The preview HUD pages through them with ← / → arrows, ⌘1–3 quick-select, and saves each draft's edits separately as you flip back and forth.</p>
+        <p><strong>Enable in Settings → Contextual rewrite → "Generate 3 drafts per rewrite"</strong>. Costs ~1.5–2× tokens per rewrite but only one network round-trip.</p>
+        <p>Falls back gracefully: if the model ignores the multi-variant prompt or its drafts are filtered as refusals, you get a single rewrite via the existing retry chain. Works with all LLM providers (Gemini, Ollama, OpenAI-compatible).</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.8.5">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.8.5/Contextual-Mac-Translator-v0.8.5-macos-arm64.zip"
+        sparkle:version="25"
+        sparkle:shortVersionString="0.8.5"
+        sparkle:edSignature="7TfMY6L+ovQkAd8qFOXdgv8rCtp1+fJRHaDz85JKl0LeKJabziADrwclR9pqKt/BrPRGkxJUpk4CH/ihmU4mDA==" length="1968048"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.8.4</title>
       <pubDate>Sun, 24 May 2026 04:04:40 +0700</pubDate>
       <description><![CDATA[

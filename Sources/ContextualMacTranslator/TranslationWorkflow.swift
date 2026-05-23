@@ -27,6 +27,10 @@ final class TranslationWorkflow {
     /// Inspects the focused UI element's AX role so the picker workflow
     /// can refuse paste into a `AXSecureTextField` before capturing anything.
     private let focusedElementKindProvider: @MainActor () -> FocusedElementKind
+    /// v0.8.5 — when this returns `true`, rewrite paths ask the model for
+    /// 3 drafts in a single round-trip and surface them in the multi-variant
+    /// PreviewHUD. Default reads from `SettingsStore.shared`.
+    private let multiVariantRewriteEnabledProvider: @MainActor () -> Bool
 
     /// Production initialiser — wires `providerFactory` to a closure that
     /// resolves the active provider every call.
@@ -42,7 +46,8 @@ final class TranslationWorkflow {
         focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled },
         primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage },
         rewriteAvailableProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.rewriteAvailable },
-        focusedElementKindProvider: @escaping @MainActor () -> FocusedElementKind = { FocusedElementInspector().currentKind() }
+        focusedElementKindProvider: @escaping @MainActor () -> FocusedElementKind = { FocusedElementInspector().currentKind() },
+        multiVariantRewriteEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.multiVariantRewriteEnabled }
     ) {
         self.providerFactory = providerFactory
         self.hudController = hudController
@@ -56,6 +61,7 @@ final class TranslationWorkflow {
         self.primaryLanguageProvider = primaryLanguageProvider
         self.rewriteAvailableProvider = rewriteAvailableProvider
         self.focusedElementKindProvider = focusedElementKindProvider
+        self.multiVariantRewriteEnabledProvider = multiVariantRewriteEnabledProvider
     }
 
     /// Convenience initialiser for callers that hold a fixed provider —
@@ -73,7 +79,8 @@ final class TranslationWorkflow {
         focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled },
         primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage },
         rewriteAvailableProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.rewriteAvailable },
-        focusedElementKindProvider: @escaping @MainActor () -> FocusedElementKind = { FocusedElementInspector().currentKind() }
+        focusedElementKindProvider: @escaping @MainActor () -> FocusedElementKind = { FocusedElementInspector().currentKind() },
+        multiVariantRewriteEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.multiVariantRewriteEnabled }
     ) {
         self.init(
             providerFactory: { translator },
@@ -87,7 +94,8 @@ final class TranslationWorkflow {
             focusGuardEnabledProvider: focusGuardEnabledProvider,
             primaryLanguageProvider: primaryLanguageProvider,
             rewriteAvailableProvider: rewriteAvailableProvider,
-            focusedElementKindProvider: focusedElementKindProvider
+            focusedElementKindProvider: focusedElementKindProvider,
+            multiVariantRewriteEnabledProvider: multiVariantRewriteEnabledProvider
         )
     }
 
@@ -262,10 +270,18 @@ final class TranslationWorkflow {
             return
         }
 
-        let style = binding.style(language: primaryLanguageProvider())
+        // v0.8.5 — decorate the style with N drafts when the user has
+        // opted into multi-variant rewriting.
+        let baseStyle = binding.style(language: primaryLanguageProvider())
+        let style = multiVariantRewriteEnabledProvider()
+            ? baseStyle.withVariantCount(3)
+            : baseStyle
         focusGuard.capture()
 
-        hudController.showLoading("Rewriting message...", persona: style)
+        hudController.showLoading(
+            style.variantCount > 1 ? "Generating \(style.variantCount) drafts..." : "Rewriting message...",
+            persona: style
+        )
         let snapshot = pasteboard.capture()
         let previousChangeCount = pasteboard.changeCount
 
@@ -283,9 +299,9 @@ final class TranslationWorkflow {
             return
         }
 
-        let rewritten: String
+        let variants: [String]
         do {
-            rewritten = try await performRewrite(sourceText: sourceText, style: style, translator: translator)
+            variants = try await performRewriteVariants(sourceText: sourceText, style: style, translator: translator)
         } catch {
             pasteboard.restore(snapshot)
             hudController.showError(error.localizedDescription)
@@ -294,9 +310,9 @@ final class TranslationWorkflow {
 
         // Always preview — never auto-send a tone-changed message.
         hudController.dismiss()
-        let decision = await previewPresenter.presentPreview(
+        let decision = await previewPresenter.presentVariants(
             original: sourceText,
-            translated: rewritten,
+            variants: variants,
             persona: style,
             isSourceFocused: { [weak self] in
                 guard let self else { return false }
@@ -379,6 +395,43 @@ final class TranslationWorkflow {
         throw RewriteError.refused
     }
 
+    /// v0.8.5 — variant-aware rewrite entry. When `style.variantCount`
+    /// is 1, delegates to the single-draft `performRewrite` and wraps
+    /// the result in a one-element array (so the rest of the workflow
+    /// can stay uniform). When >1, asks the model for N drafts in one
+    /// round-trip + parses the response with the sentinel-based splitter.
+    /// Falls back to single-draft retry if parsing yields <2 usable
+    /// variants, so a model that ignored the multi-variant prompt still
+    /// produces something usable.
+    private func performRewriteVariants(
+        sourceText: String,
+        style: TranslationStyle,
+        translator: any TranslationProvider
+    ) async throws -> [String] {
+        guard style.variantCount > 1 else {
+            let single = try await performRewrite(sourceText: sourceText, style: style, translator: translator)
+            return [single]
+        }
+        let job = TranslationJob(
+            text: sourceText,
+            style: style,
+            sourceLanguage: primaryLanguageProvider(),
+            glossary: glossaryProvider()
+        )
+        let raw = try await translator.translate(job).translation
+        let parsed = RewriteResultProcessor.splitVariants(raw)
+        if parsed.count >= 2 {
+            // Cap to the requested count — some models over-deliver.
+            return Array(parsed.prefix(style.variantCount))
+        }
+        // Model ignored the multi-variant prompt OR everything got
+        // filtered as refusals. Fall back to a single-draft pass with
+        // the anti-refusal retry chain so the user still gets a result.
+        let fallbackStyle = style.withVariantCount(1)
+        let single = try await performRewrite(sourceText: sourceText, style: fallbackStyle, translator: translator)
+        return [single]
+    }
+
     // MARK: - Tone picker (v0.8)
 
     /// Picker variant of the rewrite workflow. Capture the current input
@@ -456,22 +509,28 @@ final class TranslationWorkflow {
             return
         }
 
-        let style = Self.style(forPickerEntry: entry, language: primaryLanguageProvider())
+        let baseStyle = Self.style(forPickerEntry: entry, language: primaryLanguageProvider())
+        let style = multiVariantRewriteEnabledProvider()
+            ? baseStyle.withVariantCount(3)
+            : baseStyle
 
-        hudController.showLoading("Rewriting message...", persona: style)
+        hudController.showLoading(
+            style.variantCount > 1 ? "Generating \(style.variantCount) drafts..." : "Rewriting message...",
+            persona: style
+        )
 
-        let rewritten: String
+        let variants: [String]
         do {
-            rewritten = try await performRewrite(sourceText: sourceText, style: style, translator: translator)
+            variants = try await performRewriteVariants(sourceText: sourceText, style: style, translator: translator)
         } catch {
             hudController.showError(error.localizedDescription)
             return
         }
 
         hudController.dismiss()
-        let decision = await previewPresenter.presentPreview(
+        let decision = await previewPresenter.presentVariants(
             original: sourceText,
-            translated: rewritten,
+            variants: variants,
             persona: style,
             isSourceFocused: { [weak self] in
                 guard let self else { return false }

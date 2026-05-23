@@ -17,6 +17,37 @@ protocol PreviewPresenter: AnyObject {
         persona: Persona,
         isSourceFocused: @escaping @MainActor () -> Bool
     ) async -> PreviewDecision
+
+    /// v0.8.5 — multi-variant entry point. `variants` MUST contain at
+    /// least one entry; presenters page through them with ← → arrows or
+    /// ⌘1-N quick-select. The decision returns the user-confirmed
+    /// (possibly edited) text of the *selected* variant.
+    func presentVariants(
+        original: String,
+        variants: [String],
+        persona: Persona,
+        isSourceFocused: @escaping @MainActor () -> Bool
+    ) async -> PreviewDecision
+}
+
+extension PreviewPresenter {
+    /// Default adapter — single-variant flow is just `presentVariants`
+    /// with a one-element list. Lets existing stubs / tests that only
+    /// implement `presentPreview` opt-in to multi-variant later.
+    func presentVariants(
+        original: String,
+        variants: [String],
+        persona: Persona,
+        isSourceFocused: @escaping @MainActor () -> Bool
+    ) async -> PreviewDecision {
+        let translated = variants.first ?? ""
+        return await presentPreview(
+            original: original,
+            translated: translated,
+            persona: persona,
+            isSourceFocused: isSourceFocused
+        )
+    }
 }
 
 /// `NSPanel` subclass that can become key — required so SwiftUI's
@@ -26,12 +57,34 @@ protocol PreviewPresenter: AnyObject {
 /// original target app for the subsequent paste.
 final class KeyableNonactivatingPanel: NSPanel {
     var onTabPressed: (() -> Void)?
+    /// v0.8.5 — ← / → navigate between variants (when present). ⌘1–5
+    /// quick-select a variant by ordinal. Routed to the view-model via
+    /// these closures so SwiftUI doesn't have to wire ResponderChain.
+    var onLeftArrowPressed: (() -> Void)?
+    var onRightArrowPressed: (() -> Void)?
+    var onCommandDigitPressed: ((Int) -> Void)?
 
     override var canBecomeKey: Bool { true }
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 48 {
             onTabPressed?()
+            return
+        }
+        // Carbon keyCodes — ← 123, → 124.
+        if event.keyCode == 123, !event.modifierFlags.contains(.command) {
+            onLeftArrowPressed?()
+            return
+        }
+        if event.keyCode == 124, !event.modifierFlags.contains(.command) {
+            onRightArrowPressed?()
+            return
+        }
+        if event.modifierFlags.contains(.command),
+           let chars = event.charactersIgnoringModifiers,
+           let n = chars.first?.wholeNumberValue,
+           (1...5).contains(n) {
+            onCommandDigitPressed?(n)
             return
         }
         super.keyDown(with: event)
@@ -62,10 +115,24 @@ final class PreviewHUDController: PreviewPresenter {
         persona: Persona,
         isSourceFocused: @escaping @MainActor () -> Bool
     ) async -> PreviewDecision {
+        await presentVariants(
+            original: original,
+            variants: [translated],
+            persona: persona,
+            isSourceFocused: isSourceFocused
+        )
+    }
+
+    func presentVariants(
+        original: String,
+        variants: [String],
+        persona: Persona,
+        isSourceFocused: @escaping @MainActor () -> Bool
+    ) async -> PreviewDecision {
         await withCheckedContinuation { continuation in
             show(
                 original: original,
-                translated: translated,
+                variants: variants.isEmpty ? [""] : variants,
                 persona: persona,
                 isSourceFocused: isSourceFocused,
                 continuation: continuation
@@ -75,14 +142,14 @@ final class PreviewHUDController: PreviewPresenter {
 
     private func show(
         original: String,
-        translated: String,
+        variants: [String],
         persona: Persona,
         isSourceFocused: @escaping @MainActor () -> Bool,
         continuation: CheckedContinuation<PreviewDecision, Never>
     ) {
         let model = PreviewHUDViewModel(
             original: original,
-            translated: translated,
+            variants: variants,
             persona: persona
         )
 
@@ -99,6 +166,9 @@ final class PreviewHUDController: PreviewPresenter {
 
         let panel = panel ?? makePanel()
         panel.onTabPressed = { model.enterEditMode() }
+        panel.onLeftArrowPressed = { model.selectPrevious() }
+        panel.onRightArrowPressed = { model.selectNext() }
+        panel.onCommandDigitPressed = { n in model.selectIndex(n - 1) }
         let hostingController = NSHostingController(rootView: PreviewHUDView(model: model))
         // `.minSize` lets the panel resize freely instead of snapping
         // back to the SwiftUI content's preferred size.
@@ -193,20 +263,61 @@ final class PreviewHUDController: PreviewPresenter {
 final class PreviewHUDViewModel {
     let original: String
     let persona: Persona
-    var editableTranslation: String
+    /// v0.8.5 — every variant the LLM produced (always ≥1; single-rewrite
+    /// flow stores a one-element list). Edits to the active variant are
+    /// captured in `variants[selectedIndex]` so paging back-and-forth
+    /// preserves the user's tweaks.
+    var variants: [String]
+    /// Index of the active variant. Clamped to `variants.indices`.
+    var selectedIndex: Int = 0
     var isEditing = false
 
     var onSend: () -> Void = {}
     var onCancel: () -> Void = {}
 
-    init(original: String, translated: String, persona: Persona) {
+    convenience init(original: String, translated: String, persona: Persona) {
+        self.init(original: original, variants: [translated], persona: persona)
+    }
+
+    init(original: String, variants: [String], persona: Persona) {
         self.original = original
         self.persona = persona
-        self.editableTranslation = translated
+        self.variants = variants.isEmpty ? [""] : variants
+    }
+
+    /// Whether to show the variant pager UI (chip + ← → + ⌘N hints).
+    var isMultiVariant: Bool { variants.count > 1 }
+
+    /// The text the user is currently looking at. Two-way bound to the
+    /// editor so edits land in `variants[selectedIndex]` automatically.
+    var editableTranslation: String {
+        get { variants.indices.contains(selectedIndex) ? variants[selectedIndex] : "" }
+        set {
+            guard variants.indices.contains(selectedIndex) else { return }
+            variants[selectedIndex] = newValue
+        }
     }
 
     func enterEditMode() {
         isEditing = true
+    }
+
+    func selectIndex(_ i: Int) {
+        guard variants.indices.contains(i) else { return }
+        selectedIndex = i
+        // Leaving edit mode when paging avoids a stuck text-editor focus
+        // on the previous variant.
+        isEditing = false
+    }
+
+    func selectNext() {
+        guard isMultiVariant else { return }
+        selectIndex((selectedIndex + 1) % variants.count)
+    }
+
+    func selectPrevious() {
+        guard isMultiVariant else { return }
+        selectIndex((selectedIndex - 1 + variants.count) % variants.count)
     }
 }
 
@@ -225,6 +336,39 @@ struct PreviewHUDView: View {
                 Text(model.persona.displayName)
                     .font(.headline)
                 Spacer()
+                // v0.8.5 — variant pager. Only rendered when the LLM
+                // produced more than one draft.
+                if model.isMultiVariant {
+                    HStack(spacing: 6) {
+                        Button {
+                            model.selectPrevious()
+                        } label: {
+                            Image(systemName: "chevron.left")
+                                .symbolRenderingMode(.hierarchical)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Previous draft (←)")
+                        .accessibilityLabel("Previous draft")
+
+                        Text("\(model.selectedIndex + 1) / \(model.variants.count)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(.secondary.opacity(0.12), in: Capsule())
+                            .accessibilityLabel("Draft \(model.selectedIndex + 1) of \(model.variants.count)")
+
+                        Button {
+                            model.selectNext()
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .symbolRenderingMode(.hierarchical)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Next draft (→)")
+                        .accessibilityLabel("Next draft")
+                    }
+                }
                 Button {
                     model.enterEditMode()
                 } label: {
@@ -248,7 +392,7 @@ struct PreviewHUDView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Translation")
+                Text(model.isMultiVariant ? "Draft \(model.selectedIndex + 1)" : "Translation")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if model.isEditing {
@@ -269,6 +413,13 @@ struct PreviewHUDView: View {
                     }
                     .frame(minHeight: 86, maxHeight: 110)
                 }
+            }
+            // v0.8.5 — keyboard hint footer when multiple drafts exist.
+            if model.isMultiVariant {
+                Text("← → switch • ⌘1–\(model.variants.count) jump • Tab edit • Return send • Esc cancel")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
 
             HStack {

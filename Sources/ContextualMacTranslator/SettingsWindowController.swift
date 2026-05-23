@@ -523,6 +523,18 @@ struct SettingsView: View {
                 Text("This adds the \"Chửi thề\" tone — a casual-with-edge rewrite for close-friends Vietnamese chat, using profanity markers like vl/vcl/đm as natural intensifiers. The rewrite always shows in a preview before sending. Make sure your active provider supports this (Gemini works out of the box; some providers may refuse). You can turn this off any time.")
             }
 
+            // v0.8.5 — multi-variant rewrite. Off by default to keep
+            // existing users on the cheaper single-draft path.
+            Toggle(isOn: $settings.multiVariantRewriteEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Generate 3 drafts per rewrite")
+                    Text("Each rewrite invocation produces 3 different drafts in one round-trip. Browse them in the preview HUD with ← / → or ⌘1–3 before sending. Uses ~1.5–2× tokens but only one network call.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Rewrite bindings")

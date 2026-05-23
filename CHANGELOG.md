@@ -14,6 +14,68 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.8.5] — 2026-05-24
+
+**Multi-variant rewrite (3 drafts in one round-trip).** Opt-in setting
+that asks the LLM for three different rewrites in a single call, then
+lets the user page through them in the preview HUD before sending. One
+network round-trip, ~1.5–2× tokens, dramatically wider creative range.
+
+### Added
+
+- **`SettingsStore.multiVariantRewriteEnabled: Bool`** *(default OFF)* —
+  toggle under Settings → Contextual rewrite. When ON, every rewrite
+  invocation (binding hotkey OR tone picker) generates 3 drafts.
+- **`TranslationStyle.variantCount: Int`** + `.withVariantCount(_:)`
+  helper. Clamped to `[1, 5]`. `1` keeps the legacy single-draft path
+  byte-identical; `>1` flips PromptBuilder into multi-variant mode.
+- **Multi-variant prompt** — `PromptBuilder.rewriteUserPrompt` branches
+  on `variantCount > 1` and asks the model to emit N drafts separated
+  by a `---VARIANT---` sentinel on its own line.
+- **`RewriteResultProcessor.splitVariants(_:)`** — pure parser: splits
+  on sentinel, falls back to numbered-list heuristics (`1.` / `1)` /
+  `**1.**` / `Variant 1:`) when the model ignored the sentinel, drops
+  empty/refusal chunks, dedupes while preserving order.
+- **Multi-variant Preview HUD** — pager chip ("2 / 3") with ← / →
+  buttons, ⌘1–5 quick-select, footer hint, edits captured per variant
+  (paging back-and-forth preserves each draft's tweaks). Single-variant
+  flow renders unchanged.
+- **`PreviewPresenter.presentVariants(...)`** — protocol-level entry
+  point. Default extension routes to `presentPreview(...)` for stubs
+  that only know single-variant, so existing tests stay green.
+
+### Changed
+
+- `TranslationWorkflow.rewriteAndSend` + `.rewriteWithPickerAndSend`
+  now branch on `multiVariantRewriteEnabledProvider()` and call
+  `performRewriteVariants` → `presentVariants(...)`. HUD label switches
+  to "Generating 3 drafts..." when multi-variant is active.
+- `performRewriteVariants` (new) is variant-aware. When the model
+  ignores the multi-variant prompt and parsing yields `< 2` drafts,
+  it falls back to the existing `performRewrite` (with anti-refusal
+  retry chain) so users still get a result.
+
+### Compatibility
+
+- `TranslationStyle.variantCount` default = `1`. Every existing call
+  site stays single-draft — no behaviour change for users who don't
+  flip the toggle.
+- `PreviewHUDViewModel.init(original:translated:persona:)` is now a
+  convenience init that delegates to the new variants-list designated
+  init. No call-site change.
+
+### Build
+
+- Bundle 0.8.5 (build 25).
+
+### Tests
+
+- App: **270 Swift / 56 suites** GREEN (+13 net): 5 multi-variant HUD
+  view-model (nav wrap, per-variant edit persistence, single-variant
+  no-op, init back-compat), 5 variant-splitter (sentinel,
+  numbered-list fallback, dedupe, refusal-drop, single-chunk),
+  3 `TranslationStyle` variant (back-compat, clamp, `withVariantCount`).
+
 ## [0.8.4] — 2026-05-24
 
 **Pre-warmed picker + per-binding "In picker" + VoiceOver polish.** Three

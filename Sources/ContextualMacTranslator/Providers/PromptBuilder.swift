@@ -96,6 +96,32 @@ enum PromptBuilder {
 
     private static func rewriteUserPrompt(for job: TranslationJob) -> String {
         let glossary = job.glossary.isEmpty ? "(empty)" : job.glossary
+        // v0.8.5 — multi-variant prompt. When the workflow asks for >1
+        // draft, instruct the model to emit each variant separated by a
+        // sentinel the parser keys off (`---VARIANT---`). Single sentinel
+        // pattern survives token-level noise far better than asking for
+        // "## Variant 1" headings (which models love to translate, decorate,
+        // or wrap in quotes).
+        if job.style.variantCount > 1 {
+            let n = job.style.variantCount
+            return """
+            Task: rewrite the message below \(n) DIFFERENT ways.
+            Keep all outputs in the SAME language as the message. Do not translate.
+            Target tone: \(job.style.styleInstruction)
+            Glossary:
+            \(glossary)
+
+            Message:
+            \(job.text)
+
+            Produce exactly \(n) distinct rewrites that each match the target tone.
+            Each variant should explore a different angle: word choice, opening, sentence shape, register nuance.
+            Do NOT number them, do NOT label them, do NOT add commentary.
+            Separate every variant with this exact line, on its own line:
+            \(variantSentinel)
+            Return only the \(n) variants, joined by the separator.
+            """
+        }
         return """
         Task: rewrite the message below.
         Keep the output in the SAME language as the message. Do not translate.
@@ -109,6 +135,12 @@ enum PromptBuilder {
         Return only the rewritten message, in the same language.
         """
     }
+
+    /// v0.8.5 sentinel — exactly this string on its own line separates
+    /// adjacent variants in a multi-variant rewrite response. The parser
+    /// (`RewriteResultProcessor.splitVariants`) keys off this string.
+    /// Picked to be unlikely to appear in any natural-language draft.
+    static let variantSentinel = "---VARIANT---"
 
     /// Sampling temperature. Casual chat tolerates a touch more variation;
     /// formal + neutral (including rewrite) stay near-deterministic so the

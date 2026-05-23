@@ -237,6 +237,18 @@ final class SettingsStore {
         }
     }
 
+    /// v0.8.5 — generate 3 draft rewrites per invocation and let the
+    /// user page through them in the preview HUD before sending.
+    /// Default OFF: existing users keep the single-draft, faster path.
+    /// Costs ~1.5–2× tokens per rewrite when ON (single round-trip,
+    /// not three separate calls).
+    var multiVariantRewriteEnabled: Bool {
+        didSet {
+            guard multiVariantRewriteEnabled != oldValue else { return }
+            defaults.set(multiVariantRewriteEnabled, forKey: Keys.multiVariantRewriteEnabled)
+        }
+    }
+
     // MARK: Direct providers — DeepL (v0.3)
 
     var deeplAPIKey: String {
@@ -312,6 +324,7 @@ final class SettingsStore {
         static let pickerHotkey = "translator.pickerHotkey"
         // v0.8.2 expressive tones (Chửi thề)
         static let expressiveTonesEnabled = "translator.expressiveTonesEnabled"
+        static let multiVariantRewriteEnabled = "translator.multiVariantRewriteEnabled"
         // v0.3 new providers
         static let deeplUseFree = "translator.deepl.useFree"
         static let libreTranslateBaseURL = "translator.libretranslate.baseURL"
@@ -423,6 +436,9 @@ final class SettingsStore {
         // v0.8.2 expressive tones — default OFF; the Settings toggle
         // shows a confirmation dialog before flipping it on.
         expressiveTonesEnabled = defaults.object(forKey: Keys.expressiveTonesEnabled) as? Bool ?? false
+        // v0.8.5 — off by default so existing users keep the cheaper
+        // single-draft path. Opt in via Settings → Contextual rewrite.
+        multiVariantRewriteEnabled = defaults.object(forKey: Keys.multiVariantRewriteEnabled) as? Bool ?? false
 
         // v0.3 new providers
         deeplAPIKey = (try? keychain.read(account: Accounts.deeplAPIKey)) ?? ""
