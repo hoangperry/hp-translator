@@ -138,18 +138,6 @@ final class TonePickerViewModel {
         onCommit(tone)
     }
 
-    /// Clamp `selection` after the filter shrinks the list. Called from
-    /// the view's `.onChange(of: query)`.
-    func clampSelectionAfterFilter() {
-        let list = filtered
-        if list.isEmpty {
-            selection = 0
-        } else if selection >= list.count {
-            selection = max(0, list.count - 1)
-        } else if selection < 0 {
-            selection = 0
-        }
-    }
 }
 
 // MARK: - View

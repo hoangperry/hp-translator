@@ -29,6 +29,11 @@ final class TonePickerController: TonePickerPresenter {
     private var clickMonitor: Any?
     private weak var currentModel: TonePickerViewModel?
 
+    /// Single source of truth for the picker panel's content size — used
+    /// at NSPanel construction AND during cursor-anchored positioning so
+    /// the two can never drift.
+    private let panelSize = NSSize(width: 360, height: 340)
+
     private let focusLossTimeout: Duration
     private let focusPollInterval: Duration
     private let dwellTimeout: Duration
@@ -176,7 +181,7 @@ final class TonePickerController: TonePickerPresenter {
 
     private func makePanel() -> PickerPanel {
         let panel = PickerPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 340),
+            contentRect: NSRect(origin: .zero, size: panelSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -199,7 +204,6 @@ final class TonePickerController: TonePickerPresenter {
     /// 16pt inset from every visible-frame edge. Flips above the cursor
     /// when there is no room below.
     private func positionAtCursor(panel: NSPanel) {
-        let panelSize = NSSize(width: 360, height: 340)
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) })
             ?? NSScreen.main

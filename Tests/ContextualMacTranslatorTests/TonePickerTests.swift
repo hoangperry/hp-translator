@@ -144,17 +144,6 @@ struct TonePickerViewModelTests {
         #expect(box.value == .some(.polite))
     }
 
-    @Test("clampSelectionAfterFilter pulls selection in range")
-    func clampSelection() {
-        let (model, _) = makeModel()
-        model.selection = 99
-        model.clampSelectionAfterFilter()
-        #expect(model.selection == RewriteTone.allCases.count - 1)
-
-        model.query = "zzzzz"   // filtered = empty
-        model.clampSelectionAfterFilter()
-        #expect(model.selection == 0)
-    }
 }
 
 /// Minimal mutable box so tests can capture the commit value out of a

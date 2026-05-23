@@ -8,6 +8,26 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.8.1</title>
+      <pubDate>Sun, 24 May 2026 03:04:47 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Tone picker polish (v0.8.0 → v0.8.1)</h2>
+        <p>Code-review polish on top of v0.8.0. No behaviour change — pure cleanup:</p>
+        <ul>
+          <li>Picker panel size lives in one place now (was duplicated between construction and positioning, with a drift risk).</li>
+          <li>Removed an unused selection-clamp helper that wasn't actually called from the view.</li>
+        </ul>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.8.1">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.8.1/Contextual-Mac-Translator-v0.8.1-macos-arm64.zip"
+        sparkle:version="21"
+        sparkle:shortVersionString="0.8.1"
+        sparkle:edSignature="f/ZtmQlQxWw098IgTpd3Kt7xHUcwD5Qps6A3X+lDdu6D6z2CkHp8lToLNUvXY0wdKk3nOEXhxO8ztjzK4NjaAA==" length="1926468"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.8.0</title>
       <pubDate>Sun, 24 May 2026 02:52:11 +0700</pubDate>
       <description><![CDATA[

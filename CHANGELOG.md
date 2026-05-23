@@ -14,6 +14,29 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.8.1] — 2026-05-24
+
+Code-review polish on top of v0.8.0 (LOW findings). No behaviour change.
+
+### Changed
+
+- `TonePickerController` now derives both the panel `contentRect` and
+  the cursor-anchored origin from a single `private let panelSize`
+  constant — the two can no longer drift.
+- Removed `TonePickerViewModel.clampSelectionAfterFilter()` and its
+  test. The view's `.onChange(of: model.query)` already resets the
+  selection to 0 on every filter change (Spotlight / Raycast UX) —
+  the unused clamp helper would have been a different UX
+  (preserve-if-in-range) and was dead code.
+
+### Build
+
+- Bundle 0.8.1 (build 21).
+
+### Tests
+
+- App: **242 Swift / 52 suites** GREEN (−1 from the removed clamp test).
+
 ## [0.8.0] — 2026-05-24
 
 **New feature: Tone picker hotkey.** Bind ONE global hotkey to open a
