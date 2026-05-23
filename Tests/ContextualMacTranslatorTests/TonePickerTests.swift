@@ -47,34 +47,35 @@ struct PickerPanelKeyRoutingTests {
 @Suite("TonePickerViewModel")
 @MainActor
 struct TonePickerViewModelTests {
-    private func makeModel() -> (TonePickerViewModel, Box<RewriteTone??>) {
+    private func makeModel() -> (TonePickerViewModel, Box<PickerEntry??>) {
         let model = TonePickerViewModel()
-        let box = Box<RewriteTone??>(nil)
-        model.onCommit = { tone in box.value = .some(tone) }
+        let box = Box<PickerEntry??>(nil)
+        model.onCommit = { entry in box.value = .some(entry) }
         return (model, box)
     }
 
-    @Test("filtered defaults to all items when query is empty")
-    func filteredDefault() {
+    @Test("entries default to all presets when query is empty")
+    func entriesDefault() {
         let (model, _) = makeModel()
-        #expect(model.filtered == RewriteTone.allCases)
+        let expected = RewriteTone.allCases.map(PickerEntry.preset)
+        #expect(model.entries == expected)
     }
 
-    @Test("filter is case-insensitive substring on displayName")
-    func filterSubstring() {
+    @Test("Typing prepends a freetext entry above filtered presets")
+    func entriesWithFreetext() {
         let (model, _) = makeModel()
         model.query = "pro"
-        #expect(model.filtered == [.professional])
-        // "poli" matches BOTH "Polite" and "Firm but polite" — keep both.
+        #expect(model.entries == [.freetext("pro"), .preset(.professional)])
         model.query = "  PoLi  "
-        #expect(model.filtered == [.polite, .firmButPolite])
+        // freetext is trimmed; both Polite and Firm-but-polite match.
+        #expect(model.entries == [.freetext("PoLi"), .preset(.polite), .preset(.firmButPolite)])
     }
 
-    @Test("Empty filter result")
-    func filterMiss() {
+    @Test("Filter miss still keeps the freetext entry")
+    func entriesFilterMiss() {
         let (model, _) = makeModel()
         model.query = "zzzzz"
-        #expect(model.filtered.isEmpty)
+        #expect(model.entries == [.freetext("zzzzz")])
     }
 
     @Test("Escape commits nil")
@@ -85,31 +86,31 @@ struct TonePickerViewModelTests {
         #expect(model.resolved)
     }
 
-    @Test("Return commits the selected tone")
+    @Test("Return commits the selected preset")
     func returnCommitsSelection() {
         let (model, box) = makeModel()
-        model.selection = 2  // .friendly
+        model.selection = 2  // .friendly (no query → entries are presets only)
         _ = model.handle(.return)
-        #expect(box.value == .some(.friendly))
+        #expect(box.value == .some(.preset(.friendly)))
     }
 
-    @Test("Return with empty filter commits nil")
-    func returnEmptyFilterCommitsNil() {
+    @Test("Return on the freetext row commits the typed instruction")
+    func returnCommitsFreetext() {
         let (model, box) = makeModel()
-        model.query = "zzzzz"
+        model.query = "make it sound less defensive"
+        model.selection = 0  // top row = freetext
         _ = model.handle(.return)
-        #expect(box.value == .some(nil))
+        #expect(box.value == .some(.freetext("make it sound less defensive")))
     }
 
     @Test("Arrow down cycles selection")
     func arrowDownCycles() {
         let (model, _) = makeModel()
-        let count = RewriteTone.allCases.count
+        let count = RewriteTone.allCases.count   // entries with empty query
         for i in 1..<count {
             _ = model.handle(.arrowDown)
             #expect(model.selection == i)
         }
-        // Wraps around back to 0.
         _ = model.handle(.arrowDown)
         #expect(model.selection == 0)
     }
@@ -125,25 +126,33 @@ struct TonePickerViewModelTests {
     func digitCommits() {
         let (model, box) = makeModel()
         _ = model.handle(.digit(1))
-        #expect(box.value == .some(RewriteTone.allCases[0]))
+        // No query → entries[0] is the first preset.
+        #expect(box.value == .some(.preset(RewriteTone.allCases[0])))
     }
 
-    @Test("⌘+digit past the filtered list is silently consumed")
+    @Test("⌘+1 with a query commits the freetext row at index 0")
+    func digitOneSelectsFreetext() {
+        let (model, box) = makeModel()
+        model.query = "shorter"
+        _ = model.handle(.digit(1))
+        #expect(box.value == .some(.freetext("shorter")))
+    }
+
+    @Test("⌘+digit past the entry list is silently consumed")
     func digitOutOfRangeNoOp() {
         let (model, box) = makeModel()
         _ = model.handle(.digit(99))
-        #expect(box.value == nil)   // no commit happened
+        #expect(box.value == nil)
         #expect(!model.resolved)
     }
 
     @Test("commit is idempotent — second call is a no-op")
     func commitIdempotent() {
         let (model, box) = makeModel()
-        model.commit(.polite)
-        model.commit(.professional)   // should be ignored
-        #expect(box.value == .some(.polite))
+        model.commit(.preset(.polite))
+        model.commit(.preset(.professional))
+        #expect(box.value == .some(.preset(.polite)))
     }
-
 }
 
 /// Minimal mutable box so tests can capture the commit value out of a

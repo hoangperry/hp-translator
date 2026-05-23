@@ -450,13 +450,13 @@ final class TranslationWorkflow {
             return self.focusGuard.isStillFocused()
         })
 
-        guard let tone = chosen else {
+        guard let entry = chosen else {
             // User cancelled — clipboard already restored, selection
             // already collapsed. Quiet exit.
             return
         }
 
-        let style = Self.style(forPickerTone: tone, language: primaryLanguageProvider())
+        let style = Self.style(forPickerEntry: entry, language: primaryLanguageProvider())
 
         hudController.showLoading("Rewriting message...", persona: style)
 
@@ -510,25 +510,44 @@ final class TranslationWorkflow {
         hudController.showResult("Sent \(style.displayName)", persona: style)
     }
 
-    /// Build a `TranslationStyle` from a picker-chosen tone. For `.custom`
-    /// we substitute a sensible default instruction because the v0.8.0
-    /// picker doesn't (yet) include a free-text input.
-    private static func style(forPickerTone tone: RewriteTone, language: String) -> TranslationStyle {
+    /// Build a `TranslationStyle` from a picker-chosen entry. Three cases:
+    ///   • `.freetext(text)` — v0.8.3: the user typed an ad-hoc instruction
+    ///     in the picker filter; that text becomes the style instruction.
+    ///   • `.preset(.custom)` — the "Custom" preset preset row was tapped
+    ///     without free-text; fall back to a sensible default.
+    ///   • `.preset(other)` — built-in tone with its canned instruction.
+    /// `allowsExpressiveContent` only flips on for `.preset(.casualRaw)`;
+    /// a freetext rewrite stays strict — users who want expressive
+    /// rewriting should pick that preset explicitly.
+    private static func style(forPickerEntry entry: PickerEntry, language: String) -> TranslationStyle {
         let instruction: String
         let label: String
-        if tone == .custom {
-            instruction = "Rewrite this naturally and clearly while preserving the writer's intent and voice."
-            label = "Rewrite (custom)"
-        } else {
-            instruction = tone.instruction
-            label = "\(tone.displayName) rewrite"
+        let expressive: Bool
+        switch entry {
+        case .freetext(let text):
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            instruction = trimmed.isEmpty
+                ? "Rewrite this naturally and clearly while preserving the writer's intent and voice."
+                : trimmed
+            label = "Rewrite (your prompt)"
+            expressive = false
+        case .preset(let tone):
+            if tone == .custom {
+                instruction = "Rewrite this naturally and clearly while preserving the writer's intent and voice."
+                label = "Rewrite (custom)"
+            } else {
+                instruction = tone.instruction
+                label = "\(tone.displayName) rewrite"
+            }
+            expressive = tone.isExpressive
         }
         return TranslationStyle(
             direction: .rewrite,
             targetLanguage: language,
             register: .neutral,
             customStyleInstruction: instruction,
-            displayLabelOverride: label
+            displayLabelOverride: label,
+            allowsExpressiveContent: expressive
         )
     }
 

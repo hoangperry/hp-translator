@@ -14,6 +14,35 @@ enum PickerKey: Sendable, Equatable {
     case digit(Int)   // 1...9 (paired with ⌘ in `keyDown`)
 }
 
+/// One row in the picker — either a built-in tone preset, or the
+/// user's free-text instruction surfaced as a virtual "Use custom: …"
+/// row at the top of the list when they're typing.
+enum PickerEntry: Equatable, Sendable, Identifiable {
+    case freetext(String)
+    case preset(RewriteTone)
+
+    var id: String {
+        switch self {
+        case .freetext: return "__freetext__"
+        case .preset(let tone): return tone.rawValue
+        }
+    }
+
+    /// Label used by the row + the HUD persona badge.
+    var displayName: String {
+        switch self {
+        case .freetext(let text):
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let snippet = trimmed.count > 40
+                ? String(trimmed.prefix(40)) + "…"
+                : trimmed
+            return "Use: \"\(snippet)\""
+        case .preset(let tone):
+            return tone.displayName
+        }
+    }
+}
+
 /// `NSPanel` subclass for the tone picker — same `.nonactivatingPanel`
 /// shape as `KeyableNonactivatingPanel` (PreviewHUD) but with richer key
 /// routing. `onKey` returns `true` when it consumed the event so we know
@@ -79,17 +108,26 @@ final class TonePickerViewModel {
     var selection: Int = 0
     private(set) var resolved: Bool = false
 
-    var onCommit: (RewriteTone?) -> Void = { _ in }
+    var onCommit: (PickerEntry?) -> Void = { _ in }
 
     init(items: [RewriteTone] = RewriteTone.allCases) {
         self.items = items
     }
 
-    /// Live-filtered list. Case-insensitive substring on `displayName`.
-    var filtered: [RewriteTone] {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return items }
-        return items.filter { $0.displayName.lowercased().contains(q) }
+    /// All visible rows. When the user has typed something non-empty,
+    /// the first row is a virtual "Use custom: …" entry that commits as
+    /// `.freetext`. The rest are filtered presets.
+    var entries: [PickerEntry] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let presets = filterPresets(by: q.lowercased()).map(PickerEntry.preset)
+        guard !q.isEmpty else { return presets }
+        return [.freetext(q)] + presets
+    }
+
+    /// Case-insensitive substring match on the preset's display name.
+    private func filterPresets(by lowered: String) -> [RewriteTone] {
+        guard !lowered.isEmpty else { return items }
+        return items.filter { $0.displayName.lowercased().contains(lowered) }
     }
 
     /// Hard-key handler. Returns `true` when the key was consumed; the
@@ -100,7 +138,7 @@ final class TonePickerViewModel {
             commit(nil)
             return true
         case .return:
-            let list = filtered
+            let list = entries
             if list.indices.contains(selection) {
                 commit(list[selection])
             } else {
@@ -108,17 +146,17 @@ final class TonePickerViewModel {
             }
             return true
         case .arrowDown:
-            let list = filtered
+            let list = entries
             guard !list.isEmpty else { return true }
             selection = (selection + 1) % list.count
             return true
         case .arrowUp:
-            let list = filtered
+            let list = entries
             guard !list.isEmpty else { return true }
             selection = (selection - 1 + list.count) % list.count
             return true
         case .digit(let n):
-            let list = filtered
+            let list = entries
             let idx = n - 1
             if list.indices.contains(idx) {
                 commit(list[idx])
@@ -132,12 +170,11 @@ final class TonePickerViewModel {
     /// Idempotent commit. Subsequent calls are no-ops so the panel can
     /// fire close() from multiple paths (Esc, click-outside, focus loss)
     /// without double-resuming the continuation.
-    func commit(_ tone: RewriteTone?) {
+    func commit(_ entry: PickerEntry?) {
         guard !resolved else { return }
         resolved = true
-        onCommit(tone)
+        onCommit(entry)
     }
-
 }
 
 // MARK: - View
@@ -151,12 +188,13 @@ struct TonePickerView: View {
             HStack(spacing: 8) {
                 Image(systemName: "wand.and.sparkles")
                     .foregroundStyle(.secondary)
-                TextField("Filter tones…", text: $model.query)
+                TextField("Filter or describe…", text: $model.query)
                     .textFieldStyle(.plain)
                     .focused($filterFocused)
                     .onChange(of: model.query) { _, _ in
                         // Reset highlight when the filter changes so the
-                        // first match is auto-selected.
+                        // top entry is auto-selected — that's the
+                        // "Use custom: …" row if the user typed.
                         model.selection = 0
                     }
             }
@@ -168,7 +206,7 @@ struct TonePickerView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 2) {
-                        let list = model.filtered
+                        let list = model.entries
                         if list.isEmpty {
                             Text("No matching tones")
                                 .font(.callout)
@@ -176,15 +214,15 @@ struct TonePickerView: View {
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 18)
                         } else {
-                            ForEach(Array(list.enumerated()), id: \.element.id) { idx, tone in
+                            ForEach(Array(list.enumerated()), id: \.element.id) { idx, entry in
                                 TonePickerRow(
-                                    tone: tone,
+                                    entry: entry,
                                     index: idx,
                                     selected: idx == model.selection
                                 )
-                                .id(tone.id)
+                                .id(entry.id)
                                 .contentShape(Rectangle())
-                                .onTapGesture { model.commit(tone) }
+                                .onTapGesture { model.commit(entry) }
                                 .onHover { hovering in
                                     if hovering { model.selection = idx }
                                 }
@@ -194,7 +232,7 @@ struct TonePickerView: View {
                     .padding(6)
                 }
                 .onChange(of: model.selection) { _, _ in
-                    let list = model.filtered
+                    let list = model.entries
                     if list.indices.contains(model.selection) {
                         withAnimation(.snappy(duration: 0.12)) {
                             proxy.scrollTo(list[model.selection].id, anchor: .center)
@@ -214,14 +252,22 @@ struct TonePickerView: View {
 }
 
 private struct TonePickerRow: View {
-    let tone: RewriteTone
+    let entry: PickerEntry
     let index: Int
     let selected: Bool
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(tone.displayName)
+            if case .freetext = entry {
+                Image(systemName: "pencil.line")
+                    .foregroundStyle(.secondary)
+            }
+            Text(entry.displayName)
                 .font(.body)
+                .italic(isFreetext)
+                .foregroundStyle(isFreetext ? AnyShapeStyle(.primary) : AnyShapeStyle(.primary))
+                .lineLimit(1)
+                .truncationMode(.tail)
             Spacer(minLength: 8)
             if index < 9 {
                 Text("⌘\(index + 1)")
@@ -238,5 +284,10 @@ private struct TonePickerRow: View {
             selected ? AnyShapeStyle(.tint.opacity(0.20)) : AnyShapeStyle(.clear),
             in: RoundedRectangle(cornerRadius: 8)
         )
+    }
+
+    private var isFreetext: Bool {
+        if case .freetext = entry { return true }
+        return false
     }
 }

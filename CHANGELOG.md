@@ -14,6 +14,46 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.8.3] — 2026-05-24
+
+**Free-text custom instruction in the tone picker** (Apple Writing
+Tools style). Type anything into the picker filter and a "Use: ..."
+row appears at the top — picking it rewrites with your typed
+instruction instead of a preset tone.
+
+### Added
+
+- **`PickerEntry`** sum type — `.preset(RewriteTone)` for built-in
+  tones, `.freetext(String)` for user-supplied instructions. The
+  view-model + controller + workflow all flow this through.
+- **Freetext row** at the top of the picker whenever the query is
+  non-empty. Selecting it (Return / ⌘1 / click) commits as freetext;
+  the workflow uses the typed text as the rewrite instruction and
+  shows "Rewrite (your prompt)" in the preview badge.
+- **Field placeholder updated**: "Filter or describe…" makes the
+  dual purpose discoverable.
+
+### Changed
+
+- `TonePickerPresenter.present(...)` now returns `PickerEntry?` instead
+  of `RewriteTone?`. Internal protocol — no public API churn.
+
+### Notes
+
+- Freetext rewrites do NOT auto-flip `allowsExpressiveContent` on.
+  Users who want expressive (`BLOCK_NONE`) routing should pick the
+  Chửi thề preset explicitly.
+
+### Build
+
+- Bundle 0.8.3 (build 23).
+
+### Tests
+
+- App: **252 Swift / 53 suites** GREEN (+2 net from the picker
+  test rework — old `filtered`/`returnCommitsSelection` tests
+  rebuilt around `PickerEntry`, plus new freetext-specific tests).
+
 ## [0.8.2] — 2026-05-24
 
 **New tone: "Chửi thề" (casual-raw).** Opt-in expressive rewrite tone

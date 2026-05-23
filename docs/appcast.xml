@@ -8,6 +8,23 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.8.3</title>
+      <pubDate>Sun, 24 May 2026 03:48:49 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Free-text custom instruction in the picker</h2>
+        <p>Type anything into the picker filter and a "Use: …" row appears at the top. Picking it rewrites with your typed instruction instead of a preset tone — Apple Writing Tools "Describe your change" style, kept inside the same hotkey flow.</p>
+        <p>Examples: "make it sound less defensive", "warmer reply to an angry client", "shorter, under 2 sentences".</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.8.3">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.8.3/Contextual-Mac-Translator-v0.8.3-macos-arm64.zip"
+        sparkle:version="23"
+        sparkle:shortVersionString="0.8.3"
+        sparkle:edSignature="HV+YvYAjjS5r/BqFc+KGPislPjnFic70v+3Ytp7GNEJG0N8mxeDEnkycjoFHV7H1R55h9GQg7YM6cPAC+KroDg==" length="1941326"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.8.2</title>
       <pubDate>Sun, 24 May 2026 03:29:46 +0700</pubDate>
       <description><![CDATA[

@@ -4,9 +4,10 @@ import SwiftUI
 /// Protocol so `TranslationWorkflow` can stub the picker in tests.
 @MainActor
 protocol TonePickerPresenter: AnyObject {
-    /// Show the picker and resolve with the chosen tone, or `nil` if the
-    /// user cancelled (Esc, click-outside, focus loss, dwell timeout).
-    func present(isSourceFocused: @escaping @MainActor () -> Bool) async -> RewriteTone?
+    /// Show the picker and resolve with the chosen entry — either a
+    /// preset tone or the user's free-text instruction — or `nil` if
+    /// the user cancelled (Esc, click-outside, focus loss, dwell timeout).
+    func present(isSourceFocused: @escaping @MainActor () -> Bool) async -> PickerEntry?
 
     /// Synchronous close (toggle support: re-pressing the picker hotkey
     /// while the picker is on screen dismisses it).
@@ -52,7 +53,7 @@ final class TonePickerController: TonePickerPresenter {
         panel?.isVisible == true
     }
 
-    func present(isSourceFocused: @escaping @MainActor () -> Bool) async -> RewriteTone? {
+    func present(isSourceFocused: @escaping @MainActor () -> Bool) async -> PickerEntry? {
         await withCheckedContinuation { continuation in
             show(isSourceFocused: isSourceFocused, continuation: continuation)
         }
@@ -70,7 +71,7 @@ final class TonePickerController: TonePickerPresenter {
 
     private func show(
         isSourceFocused: @escaping @MainActor () -> Bool,
-        continuation: CheckedContinuation<RewriteTone?, Never>
+        continuation: CheckedContinuation<PickerEntry?, Never>
     ) {
         // Filter the visible tones by the expressive opt-in toggle so
         // "Chửi thề" (casual-raw) only appears for users who explicitly
@@ -82,14 +83,14 @@ final class TonePickerController: TonePickerPresenter {
         // `resolved` guards against double-resume — every dismissal path
         // (commit, focus loss, dwell, click-outside) funnels through here.
         var resolved = false
-        let resolve: @MainActor (RewriteTone?) -> Void = { [weak self] tone in
+        let resolve: @MainActor (PickerEntry?) -> Void = { [weak self] entry in
             guard !resolved else { return }
             resolved = true
             self?.close()
-            continuation.resume(returning: tone)
+            continuation.resume(returning: entry)
         }
 
-        model.onCommit = { tone in resolve(tone) }
+        model.onCommit = { entry in resolve(entry) }
 
         let panel = panel ?? makePanel()
         panel.onKey = { [weak model] key in model?.handle(key) ?? false }
@@ -131,7 +132,7 @@ final class TonePickerController: TonePickerPresenter {
     /// Dismiss when the user clicks in another app (the global monitor
     /// only fires on events sent to OTHER processes — clicks inside the
     /// picker hit SwiftUI handlers via the panel directly).
-    private func installClickOutsideMonitor(resolve: @escaping @MainActor (RewriteTone?) -> Void) {
+    private func installClickOutsideMonitor(resolve: @escaping @MainActor (PickerEntry?) -> Void) {
         uninstallClickOutsideMonitor()
         clickMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
@@ -149,7 +150,7 @@ final class TonePickerController: TonePickerPresenter {
 
     private func startFocusMonitor(
         isSourceFocused: @escaping @MainActor () -> Bool,
-        resolve: @escaping @MainActor (RewriteTone?) -> Void
+        resolve: @escaping @MainActor (PickerEntry?) -> Void
     ) {
         focusMonitorTask?.cancel()
         focusMonitorTask = Task { @MainActor [focusLossTimeout, focusPollInterval] in
@@ -174,7 +175,7 @@ final class TonePickerController: TonePickerPresenter {
 
     /// Hard timeout — even if focus is preserved, an abandoned picker
     /// auto-dismisses after `dwellTimeout` so it doesn't sit forever.
-    private func startDwellTimer(resolve: @escaping @MainActor (RewriteTone?) -> Void) {
+    private func startDwellTimer(resolve: @escaping @MainActor (PickerEntry?) -> Void) {
         dwellTask?.cancel()
         dwellTask = Task { @MainActor [dwellTimeout] in
             try? await Task.sleep(for: dwellTimeout)
