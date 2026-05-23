@@ -11,7 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var permissionManager = PermissionManager()
     private lazy var hudController = HUDController()
     private lazy var previewHUDController = PreviewHUDController()
-    private lazy var tonePickerController = TonePickerController()
+    // v0.8.4 — eager (not lazy) so the NSPanel is constructed at app
+    // launch, paying the ~30-60ms setup cost off the hotkey path. First
+    // picker press is then near-instant (just a positioning + orderFront).
+    private let tonePickerController = TonePickerController()
     private lazy var updaterManager = UpdaterManager()
     private lazy var providerFactory = TranslationProviderFactory(settings: .shared)
     private lazy var workflow = TranslationWorkflow(

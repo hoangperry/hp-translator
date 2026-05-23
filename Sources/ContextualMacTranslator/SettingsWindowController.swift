@@ -793,6 +793,15 @@ private struct RewriteBindingRow: View {
                 }
                 .toggleStyle(.checkbox)
                 Spacer()
+                // v0.8.4 — opt this binding into the tone picker popup
+                // (default ON for back-compat). Lets users surface saved
+                // instructions in the picker without remembering hotkeys.
+                Toggle(isOn: $binding.showInPicker) {
+                    Text("In picker")
+                        .font(.caption)
+                }
+                .toggleStyle(.checkbox)
+                .help("Show this binding as a row in the tone picker popup")
             }
 
             if showCustom || !binding.customInstruction.isEmpty || binding.tone == .custom {

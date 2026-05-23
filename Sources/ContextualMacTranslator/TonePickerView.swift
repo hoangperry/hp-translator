@@ -14,17 +14,23 @@ enum PickerKey: Sendable, Equatable {
     case digit(Int)   // 1...9 (paired with ⌘ in `keyDown`)
 }
 
-/// One row in the picker — either a built-in tone preset, or the
-/// user's free-text instruction surfaced as a virtual "Use custom: …"
-/// row at the top of the list when they're typing.
+/// One row in the picker. Three flavours:
+///   • `.freetext` — the user's typed instruction as a virtual top row
+///     ("Use: …") when they're typing.
+///   • `.preset`   — a built-in `RewriteTone`.
+///   • `.binding`  — one of the user's persisted `RewriteBinding`s
+///     surfaced in the picker (v0.8.4) so they can pick a saved
+///     instruction without remembering its hotkey.
 enum PickerEntry: Equatable, Sendable, Identifiable {
     case freetext(String)
     case preset(RewriteTone)
+    case binding(RewriteBinding)
 
     var id: String {
         switch self {
-        case .freetext: return "__freetext__"
-        case .preset(let tone): return tone.rawValue
+        case .freetext:          return "__freetext__"
+        case .preset(let tone):  return "preset:" + tone.rawValue
+        case .binding(let b):    return "binding:" + b.id.uuidString
         }
     }
 
@@ -39,6 +45,8 @@ enum PickerEntry: Equatable, Sendable, Identifiable {
             return "Use: \"\(snippet)\""
         case .preset(let tone):
             return tone.displayName
+        case .binding(let binding):
+            return binding.displayName
         }
     }
 }
@@ -104,30 +112,38 @@ final class PickerPanel: NSPanel {
 @Observable
 final class TonePickerViewModel {
     let items: [RewriteTone]
+    let bindings: [RewriteBinding]
     var query: String = ""
     var selection: Int = 0
     private(set) var resolved: Bool = false
 
     var onCommit: (PickerEntry?) -> Void = { _ in }
 
-    init(items: [RewriteTone] = RewriteTone.allCases) {
+    init(
+        items: [RewriteTone] = RewriteTone.allCases,
+        bindings: [RewriteBinding] = []
+    ) {
         self.items = items
+        self.bindings = bindings
     }
 
-    /// All visible rows. When the user has typed something non-empty,
-    /// the first row is a virtual "Use custom: …" entry that commits as
-    /// `.freetext`. The rest are filtered presets.
+    /// All visible rows in order: optional freetext (when query non-empty)
+    /// → filtered presets → filtered bindings. Filter is case-insensitive
+    /// substring on the displayed label.
     var entries: [PickerEntry] {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let presets = filterPresets(by: q.lowercased()).map(PickerEntry.preset)
-        guard !q.isEmpty else { return presets }
-        return [.freetext(q)] + presets
-    }
-
-    /// Case-insensitive substring match on the preset's display name.
-    private func filterPresets(by lowered: String) -> [RewriteTone] {
-        guard !lowered.isEmpty else { return items }
-        return items.filter { $0.displayName.lowercased().contains(lowered) }
+        let raw = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowered = raw.lowercased()
+        var rows: [PickerEntry] = []
+        if !raw.isEmpty {
+            rows.append(.freetext(raw))
+        }
+        for tone in items where lowered.isEmpty || tone.displayName.lowercased().contains(lowered) {
+            rows.append(.preset(tone))
+        }
+        for binding in bindings where lowered.isEmpty || binding.displayName.lowercased().contains(lowered) {
+            rows.append(.binding(binding))
+        }
+        return rows
     }
 
     /// Hard-key handler. Returns `true` when the key was consumed; the
@@ -247,6 +263,12 @@ struct TonePickerView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(.separator.opacity(0.6), lineWidth: 0.5)
         )
+        // v0.8.4 — VoiceOver: announce the popup as a labelled container
+        // and auto-focus the filter field on open so VO + keyboard users
+        // can immediately type.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Tone picker")
+        .accessibilityHint("Type to filter, arrow keys to navigate, Return to apply, Escape to cancel")
         .onAppear { filterFocused = true }
     }
 }
@@ -284,6 +306,14 @@ private struct TonePickerRow: View {
             selected ? AnyShapeStyle(.tint.opacity(0.20)) : AnyShapeStyle(.clear),
             in: RoundedRectangle(cornerRadius: 8)
         )
+        // v0.8.4 — accessibility: VoiceOver should announce each row as
+        // a single button with a meaningful label + ⌘-shortcut hint, and
+        // call out selection state so users navigating with VO arrows
+        // hear which row is highlighted.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(entry.displayName)
+        .accessibilityHint(index < 9 ? "Command \(index + 1) to choose" : "")
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
     private var isFreetext: Bool {

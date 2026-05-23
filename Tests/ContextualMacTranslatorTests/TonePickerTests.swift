@@ -153,6 +153,101 @@ struct TonePickerViewModelTests {
         model.commit(.preset(.professional))
         #expect(box.value == .some(.preset(.polite)))
     }
+
+    // MARK: - v0.8.4 — Bindings surfaced in the picker
+
+    /// Helper: a binding rigged with a custom hotkey + instruction so
+    /// the assertion is unambiguous about *which* binding came back.
+    private func makeBinding(
+        tone: RewriteTone = .professional,
+        instruction: String = "Sound like a TPM with deadlines"
+    ) -> RewriteBinding {
+        RewriteBinding(
+            tone: tone,
+            customInstruction: instruction,
+            hotkey: HotkeyConfig(keyCode: kVK_ANSI_R, modifiers: controlKey | optionKey)
+        )
+    }
+
+    @Test("bindings append below presets and are visible by default")
+    func bindingsAppearAfterPresets() {
+        let binding = makeBinding()
+        let model = TonePickerViewModel(bindings: [binding])
+        let entries = model.entries
+        // Presets first, then the binding.
+        #expect(entries.count == RewriteTone.allCases.count + 1)
+        #expect(entries.last == .binding(binding))
+    }
+
+    @Test("query filters bindings by displayName too")
+    func queryFiltersBindings() {
+        let pro = makeBinding(tone: .professional, instruction: "tpm")
+        let casual = RewriteBinding(
+            tone: .friendly,
+            customInstruction: "warm",
+            hotkey: HotkeyConfig(keyCode: kVK_ANSI_F, modifiers: controlKey)
+        )
+        let model = TonePickerViewModel(bindings: [pro, casual])
+        model.query = "pro"
+        let entries = model.entries
+        // freetext "pro" + .professional preset + the .professional binding
+        // (the friendly binding is filtered out since its label has no "pro")
+        #expect(entries.contains(.binding(pro)))
+        #expect(!entries.contains(.binding(casual)))
+    }
+
+    @Test("⌘+digit can commit a binding row")
+    func digitSelectsBinding() {
+        let binding = makeBinding()
+        let model = TonePickerViewModel(bindings: [binding])
+        let box = Box<PickerEntry??>(nil)
+        model.onCommit = { box.value = .some($0) }
+        let bindingIndex = model.entries.firstIndex(of: .binding(binding))!
+        _ = model.handle(.digit(bindingIndex + 1))
+        #expect(box.value == .some(.binding(binding)))
+    }
+}
+
+@Suite("RewriteBinding v0.8.4 fields")
+struct RewriteBindingV084Tests {
+    @Test("showInPicker defaults to true for new bindings")
+    func defaultsToTrue() {
+        let b = RewriteBinding(
+            tone: .polite,
+            hotkey: HotkeyConfig(keyCode: kVK_ANSI_P, modifiers: optionKey)
+        )
+        #expect(b.showInPicker == true)
+    }
+
+    @Test("legacy persisted JSON (pre-v0.8.4) decodes with showInPicker=true")
+    func legacyDecodeDefaultsToTrue() throws {
+        // No `showInPicker` key — what v0.8.3 wrote to disk.
+        // modifiers is a UInt32 Carbon mask (here: optionKey = 2048).
+        let legacyJSON = """
+        {
+          "id": "F47AC10B-58CC-4372-A567-0E02B2C3D479",
+          "tone": "polite",
+          "customInstruction": "",
+          "hotkey": { "keyCode": 35, "modifiers": 2048 }
+        }
+        """.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(RewriteBinding.self, from: legacyJSON)
+        #expect(decoded.showInPicker == true)
+        #expect(decoded.tone == .polite)
+    }
+
+    @Test("explicit false survives a round-trip through Codable")
+    func roundtripFalse() throws {
+        let original = RewriteBinding(
+            tone: .friendly,
+            hotkey: HotkeyConfig(keyCode: kVK_ANSI_F, modifiers: controlKey),
+            showInPicker: false
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(RewriteBinding.self, from: data)
+        #expect(decoded.showInPicker == false)
+        #expect(decoded == original)
+    }
 }
 
 /// Minimal mutable box so tests can capture the commit value out of a

@@ -14,6 +14,57 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.8.4] — 2026-05-24
+
+**Pre-warmed picker + per-binding "In picker" + VoiceOver polish.** Three
+small upgrades that make the tone picker feel native: the panel is
+constructed at launch (first press is instant), each saved rewrite
+binding can optionally appear as its own picker row, and the picker
+itself is properly labelled for VoiceOver.
+
+### Added
+
+- **`RewriteBinding.showInPicker: Bool`** *(default `true`)* — surface
+  the binding as a row in the tone picker popup so users can pick saved
+  instructions without remembering their hotkey. Each binding row in
+  Settings now has an "In picker" checkbox.
+- **`PickerEntry.binding(RewriteBinding)`** — third entry flavour
+  alongside `.freetext` and `.preset`. The view-model surfaces filtered
+  bindings below filtered presets; the workflow uses the binding's
+  `effectiveInstruction` + `displayName`, so a picker-driven invocation
+  produces the same output as the hotkey-driven one.
+- **VoiceOver labels** on every picker row ("⌘N to choose" hint, selected
+  trait flips on the highlighted row) and on the picker container itself
+  ("Tone picker — Type to filter, arrow keys to navigate, Return to
+  apply, Escape to cancel").
+
+### Changed
+
+- `TonePickerController` constructs its `NSPanel` at `init` instead of
+  on first `show()`. Pre-warm cost (~30–60ms) moves off the hotkey path.
+- `AppDelegate.tonePickerController` is now `let` (eager) not `lazy var`,
+  to actually realize the pre-warm.
+
+### Compatibility
+
+- Persisted bindings from v0.8.3 and earlier decode with
+  `showInPicker = true` via `decodeIfPresent` — zero migration cost,
+  round-trip safe. Users who want a binding hidden from the picker
+  can untick it in Settings.
+
+### Build
+
+- Bundle 0.8.4 (build 24).
+
+### Tests
+
+- App: **257 Swift / 54 suites** GREEN (+5 net: 3 new binding/picker
+  view-model tests + 3 new `RewriteBinding` Codable tests for
+  `showInPicker` default + legacy decode + round-trip).
+- Known flaky `SupabaseAuthViewModel.sendCode-no-config` test still
+  fails ~once per full suite, passes 10/10 in isolation. Pre-existing
+  since v0.5.x — not v0.8.4-related.
+
 ## [0.8.3] — 2026-05-24
 
 **Free-text custom instruction in the tone picker** (Apple Writing

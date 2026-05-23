@@ -89,17 +89,39 @@ struct RewriteBinding: Codable, Equatable, Identifiable, Hashable, Sendable {
     /// preset tones it acts as an optional override of the preset.
     var customInstruction: String
     var hotkey: HotkeyConfig
+    /// v0.8.4 — surface this binding as a row in the tone picker too,
+    /// so the user can choose it from the popup without remembering
+    /// the hotkey. Defaults to `true`; old persisted bindings decode
+    /// to `true` via `decodeIfPresent` for zero migration cost.
+    var showInPicker: Bool
 
     init(
         id: UUID = UUID(),
         tone: RewriteTone,
         customInstruction: String = "",
-        hotkey: HotkeyConfig
+        hotkey: HotkeyConfig,
+        showInPicker: Bool = true
     ) {
         self.id = id
         self.tone = tone
         self.customInstruction = customInstruction
         self.hotkey = hotkey
+        self.showInPicker = showInPicker
+    }
+
+    /// Custom `Codable` to give the new `showInPicker` field a default
+    /// when decoding bindings persisted before v0.8.4.
+    enum CodingKeys: String, CodingKey {
+        case id, tone, customInstruction, hotkey, showInPicker
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decode(UUID.self, forKey: .id)
+        self.tone = try c.decode(RewriteTone.self, forKey: .tone)
+        self.customInstruction = try c.decode(String.self, forKey: .customInstruction)
+        self.hotkey = try c.decode(HotkeyConfig.self, forKey: .hotkey)
+        self.showInPicker = try c.decodeIfPresent(Bool.self, forKey: .showInPicker) ?? true
     }
 
     /// Label for Settings rows + the HUD.

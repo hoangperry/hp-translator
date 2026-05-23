@@ -8,6 +8,28 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.8.4</title>
+      <pubDate>Sun, 24 May 2026 04:04:40 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Pre-warmed picker + per-binding "In picker" + VoiceOver polish</h2>
+        <p>Three small upgrades that make the tone picker feel native:</p>
+        <ul>
+          <li><strong>Pre-warmed panel</strong> — the picker NSPanel is built at app launch instead of on first hotkey press. First open is now near-instant.</li>
+          <li><strong>"In picker" per binding</strong> — every saved rewrite binding in Settings now has an opt-in checkbox to also surface it as a row in the popup. Pick saved instructions without remembering hotkeys.</li>
+          <li><strong>VoiceOver</strong> — every picker row is properly labelled with its ⌘-shortcut hint and selected state; the container announces "Type to filter, arrow keys to navigate, Return to apply, Escape to cancel".</li>
+        </ul>
+        <p>Zero-migration: bindings persisted by v0.8.3 decode with In Picker = ON by default.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.8.4">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.8.4/Contextual-Mac-Translator-v0.8.4-macos-arm64.zip"
+        sparkle:version="24"
+        sparkle:shortVersionString="0.8.4"
+        sparkle:edSignature="LcCOVflA+qU8bAl4cfPhicoEvhgHr4HTVb7B9tc6WnxO/c2ts8BBXpAlNWt3dOK0tvOkUC7Yqjx2KuavB0RSCQ==" length="1952177"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.8.3</title>
       <pubDate>Sun, 24 May 2026 03:48:49 +0700</pubDate>
       <description><![CDATA[

@@ -510,15 +510,19 @@ final class TranslationWorkflow {
         hudController.showResult("Sent \(style.displayName)", persona: style)
     }
 
-    /// Build a `TranslationStyle` from a picker-chosen entry. Three cases:
+    /// Build a `TranslationStyle` from a picker-chosen entry. Four cases:
     ///   • `.freetext(text)` — v0.8.3: the user typed an ad-hoc instruction
     ///     in the picker filter; that text becomes the style instruction.
-    ///   • `.preset(.custom)` — the "Custom" preset preset row was tapped
+    ///   • `.preset(.custom)` — the "Custom" preset row was tapped
     ///     without free-text; fall back to a sensible default.
     ///   • `.preset(other)` — built-in tone with its canned instruction.
-    /// `allowsExpressiveContent` only flips on for `.preset(.casualRaw)`;
-    /// a freetext rewrite stays strict — users who want expressive
-    /// rewriting should pick that preset explicitly.
+    ///   • `.binding(b)` — v0.8.4: a persisted RewriteBinding surfaced in
+    ///     the picker (because the user ticked "In picker"); use the
+    ///     binding's effective instruction + display label so the result
+    ///     is identical to invoking the binding via its hotkey.
+    /// `allowsExpressiveContent` only flips on for tones flagged
+    /// `.isExpressive` (e.g. `.casualRaw`); freetext stays strict —
+    /// users who want expressive rewriting must pick a preset explicitly.
     private static func style(forPickerEntry entry: PickerEntry, language: String) -> TranslationStyle {
         let instruction: String
         let label: String
@@ -540,6 +544,10 @@ final class TranslationWorkflow {
                 label = "\(tone.displayName) rewrite"
             }
             expressive = tone.isExpressive
+        case .binding(let binding):
+            instruction = binding.effectiveInstruction
+            label = binding.displayName
+            expressive = binding.tone.isExpressive
         }
         return TranslationStyle(
             direction: .rewrite,

@@ -47,6 +47,10 @@ final class TonePickerController: TonePickerPresenter {
         self.focusLossTimeout = focusLossTimeout
         self.focusPollInterval = focusPollInterval
         self.dwellTimeout = dwellTimeout
+        // v0.8.4 — pre-warm the panel at init so the first hotkey press
+        // doesn't pay the NSPanel construction cost (~30-60ms). The panel
+        // is created off-screen and only `orderFront`'d in `show()`.
+        self.panel = makePanel()
     }
 
     var isShowing: Bool {
@@ -77,7 +81,11 @@ final class TonePickerController: TonePickerPresenter {
         // "Chửi thề" (casual-raw) only appears for users who explicitly
         // enabled it in Settings.
         let items = RewriteTone.available(expressive: SettingsStore.shared.expressiveTonesEnabled)
-        let model = TonePickerViewModel(items: items)
+        // v0.8.4 — also surface persisted RewriteBindings whose owner
+        // ticked "In picker" so they can be picked from the popup
+        // without remembering the hotkey.
+        let pickerBindings = SettingsStore.shared.rewriteBindings.filter { $0.showInPicker }
+        let model = TonePickerViewModel(items: items, bindings: pickerBindings)
         currentModel = model
 
         // `resolved` guards against double-resume — every dismissal path
