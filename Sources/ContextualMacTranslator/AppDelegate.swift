@@ -5,6 +5,7 @@ import Observation
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: SettingsWindowController?
     private var onboardingWindowController: OnboardingWindowController?
+    private var whatsNewWindowController: WhatsNewWindowController?
     private var hotKeysRegistered = false
     private var isObservingBindings = false
 
@@ -51,6 +52,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             showOnboarding()
         }
+        // v0.9.0 — show the What's-New window on a fresh minor/major.
+        // Deferred slightly so it doesn't trample the onboarding flow
+        // (which only fires when firstRunCompleted is false, so this is
+        // belt-and-braces — both can't fire on the same launch anyway).
+        if SettingsStore.shared.firstRunCompleted {
+            maybeShowWhatsNew()
+        }
+    }
+
+    /// Compare the bundled CFBundleShortVersionString against the last
+    /// version we showed the What's-New window for. If they differ
+    /// (typical case: user just upgraded), pop the window once and
+    /// record the version so it stays dismissed next launch.
+    private func maybeShowWhatsNew() {
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let lastShown = SettingsStore.shared.lastShownWhatsNewVersion
+        guard !current.isEmpty, current != lastShown else { return }
+        // Only show for v0.9.x for now — earlier copy lives behind a
+        // version gate so a v0.10.0 upgrade can swap to a new highlight
+        // set without re-showing the v0.9.0 one.
+        guard current.hasPrefix("0.9.") else {
+            SettingsStore.shared.lastShownWhatsNewVersion = current
+            return
+        }
+        let controller = WhatsNewWindowController(
+            version: current,
+            highlights: WhatsNewWindowController.v0_9_0Highlights,
+            onContinue: { [weak self] in
+                SettingsStore.shared.lastShownWhatsNewVersion = current
+                self?.whatsNewWindowController?.close()
+                self?.whatsNewWindowController = nil
+            }
+        )
+        whatsNewWindowController = controller
+        controller.show()
     }
 
     /// LSUIElement apps don't get a standard menu bar, so SwiftUI

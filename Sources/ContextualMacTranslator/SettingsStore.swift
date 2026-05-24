@@ -239,6 +239,17 @@ final class SettingsStore {
         }
     }
 
+    /// v0.9.0 — last app version whose What's-New window was shown.
+    /// Empty string = never shown. AppDelegate compares against
+    /// `CFBundleShortVersionString` on launch and pops the window once
+    /// per fresh minor/major release.
+    var lastShownWhatsNewVersion: String {
+        didSet {
+            guard lastShownWhatsNewVersion != oldValue else { return }
+            defaults.set(lastShownWhatsNewVersion, forKey: Keys.lastShownWhatsNewVersion)
+        }
+    }
+
     /// Opt-in to expressive rewrite tones (v0.8.2 — "Chửi thề" / casual
     /// raw). Default OFF: only neutral tones (Polite, Professional, …)
     /// show up in the picker + binding dropdowns until enabled. The
@@ -337,6 +348,7 @@ final class SettingsStore {
         // v0.8 tone picker hotkey
         static let pickerHotkey = "translator.pickerHotkey"
         static let captureHotkey = "translator.captureHotkey"
+        static let lastShownWhatsNewVersion = "translator.lastShownWhatsNewVersion"
         // v0.8.2 expressive tones (Chửi thề)
         static let expressiveTonesEnabled = "translator.expressiveTonesEnabled"
         static let multiVariantRewriteEnabled = "translator.multiVariantRewriteEnabled"
@@ -448,6 +460,7 @@ final class SettingsStore {
             ?? []
         pickerHotkey = Self.loadCodable(HotkeyConfig.self, defaults: defaults, key: Keys.pickerHotkey)
         captureHotkey = Self.loadCodable(HotkeyConfig.self, defaults: defaults, key: Keys.captureHotkey)
+        lastShownWhatsNewVersion = defaults.string(forKey: Keys.lastShownWhatsNewVersion) ?? ""
 
         // v0.8.2 expressive tones — default OFF; the Settings toggle
         // shows a confirmation dialog before flipping it on.
