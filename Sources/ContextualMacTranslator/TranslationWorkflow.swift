@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 @MainActor
@@ -31,6 +32,13 @@ final class TranslationWorkflow {
     /// 3 drafts in a single round-trip and surface them in the multi-variant
     /// PreviewHUD. Default reads from `SettingsStore.shared`.
     private let multiVariantRewriteEnabledProvider: @MainActor () -> Bool
+    /// v0.9.0 — region screenshot capture (defaults to system screencapture
+    /// subprocess; tests inject a stub).
+    private let captureService: ScreenCaptureService
+    /// v0.9.0 — Vision OCR; tests inject a fixed-text stub.
+    private let ocrEngine: OCREngine
+    /// v0.9.0 — NLLanguageRecognizer wrapper for auto-detecting OCR'd text.
+    private let languageDetector: LanguageDetector
 
     /// Production initialiser — wires `providerFactory` to a closure that
     /// resolves the active provider every call.
@@ -47,7 +55,10 @@ final class TranslationWorkflow {
         primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage },
         rewriteAvailableProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.rewriteAvailable },
         focusedElementKindProvider: @escaping @MainActor () -> FocusedElementKind = { FocusedElementInspector().currentKind() },
-        multiVariantRewriteEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.multiVariantRewriteEnabled }
+        multiVariantRewriteEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.multiVariantRewriteEnabled },
+        captureService: ScreenCaptureService = SystemScreenCaptureService(),
+        ocrEngine: OCREngine = VisionOCREngine(),
+        languageDetector: LanguageDetector = NaturalLanguageDetector()
     ) {
         self.providerFactory = providerFactory
         self.hudController = hudController
@@ -62,6 +73,9 @@ final class TranslationWorkflow {
         self.rewriteAvailableProvider = rewriteAvailableProvider
         self.focusedElementKindProvider = focusedElementKindProvider
         self.multiVariantRewriteEnabledProvider = multiVariantRewriteEnabledProvider
+        self.captureService = captureService
+        self.ocrEngine = ocrEngine
+        self.languageDetector = languageDetector
     }
 
     /// Convenience initialiser for callers that hold a fixed provider —
@@ -80,7 +94,10 @@ final class TranslationWorkflow {
         primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage },
         rewriteAvailableProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.rewriteAvailable },
         focusedElementKindProvider: @escaping @MainActor () -> FocusedElementKind = { FocusedElementInspector().currentKind() },
-        multiVariantRewriteEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.multiVariantRewriteEnabled }
+        multiVariantRewriteEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.multiVariantRewriteEnabled },
+        captureService: ScreenCaptureService = SystemScreenCaptureService(),
+        ocrEngine: OCREngine = VisionOCREngine(),
+        languageDetector: LanguageDetector = NaturalLanguageDetector()
     ) {
         self.init(
             providerFactory: { translator },
@@ -95,7 +112,10 @@ final class TranslationWorkflow {
             primaryLanguageProvider: primaryLanguageProvider,
             rewriteAvailableProvider: rewriteAvailableProvider,
             focusedElementKindProvider: focusedElementKindProvider,
-            multiVariantRewriteEnabledProvider: multiVariantRewriteEnabledProvider
+            multiVariantRewriteEnabledProvider: multiVariantRewriteEnabledProvider,
+            captureService: captureService,
+            ocrEngine: ocrEngine,
+            languageDetector: languageDetector
         )
     }
 
@@ -503,6 +523,104 @@ final class TranslationWorkflow {
         let fallbackStyle = style.withVariantCount(1)
         let single = try await performRewrite(sourceText: sourceText, style: fallbackStyle, translator: translator)
         return [single]
+    }
+
+    // MARK: - OCR capture (v0.9.0)
+
+    /// Capture a screen region, OCR the contents, auto-detect source
+    /// language, translate into the user's primary language, surface
+    /// the result in the PreviewHUD.
+    ///
+    /// This is a READ flow, not a SEND flow — the user is consuming
+    /// foreign text from the screen, not authoring a message. The HUD
+    /// is presented in `.copy` mode (P5) so its primary action is
+    /// "Copy", not "Paste". No keystroke simulation, no clipboard
+    /// snapshot/restore dance: the system `screencapture` tool owns
+    /// the capture UX, and the OCR'd text never touches the user's
+    /// clipboard until they explicitly choose to copy from the HUD.
+    func captureAndTranslate() async {
+        let translator = providerFactory()
+        guard translator.isConfigured else {
+            hudController.showError(TranslationError.missingEndpoint.localizedDescription)
+            return
+        }
+
+        // Capture — system tool owns crosshair + permission UX.
+        let captureResult = await captureService.captureRegion()
+        let image: CGImage
+        switch captureResult {
+        case .captured(let img):
+            image = img
+        case .cancelled:
+            // User pressed Esc on the crosshair. Quiet exit — no toast.
+            return
+        case .failed(let reason):
+            hudController.showError("Couldn't capture screen: \(reason)")
+            return
+        }
+
+        let target = primaryLanguageProvider()
+        let initialStyle = TranslationStyle(
+            direction: .inbound,
+            targetLanguage: target,
+            register: .neutral
+        )
+        hudController.showLoading("Reading text from screen...", persona: initialStyle)
+
+        // OCR — Vision pipeline.
+        let ocrResult = await ocrEngine.recognizeText(in: image)
+        let sourceText: String
+        switch ocrResult {
+        case .recognized(let text):
+            sourceText = text
+        case .nothingDetected:
+            hudController.showError("No text detected in that region.")
+            return
+        case .failed(let reason):
+            hudController.showError("OCR failed: \(reason)")
+            return
+        }
+
+        // Detect language on-device so the provider gets the right hint.
+        let sourceLanguage = languageDetector.detectLanguage(in: sourceText)
+
+        let job = TranslationJob(
+            text: sourceText,
+            style: initialStyle,
+            sourceLanguage: sourceLanguage,
+            glossary: glossaryProvider()
+        )
+
+        let translation: String
+        do {
+            translation = try await translator.translate(job).translation
+        } catch {
+            hudController.showError(error.localizedDescription)
+            return
+        }
+
+        hudController.dismiss()
+        // PreviewHUD in copy-mode — the user's primary action is
+        // "Copy translation to clipboard", not "Paste into focused app".
+        // P5 specialises the real PreviewHUDController to relabel the
+        // button; the default-extension route just goes through the
+        // standard `presentPreview`. In both cases the workflow writes
+        // the confirmed text to the clipboard on `.send` and shows a
+        // success toast.
+        let decision = await previewPresenter.presentForCopy(
+            original: sourceText,
+            translated: PromptBuilder.normalize(translation),
+            persona: initialStyle,
+            isSourceFocused: { true }    // OCR isn't tied to a source app
+        )
+        switch decision {
+        case .send(let confirmed):
+            pasteboard.writeString(confirmed)
+            hudController.showResult("Copied translation to clipboard", persona: initialStyle)
+        case .cancel:
+            // No clipboard write, no toast — silent dismissal.
+            return
+        }
     }
 
     // MARK: - Tone picker (v0.8)

@@ -48,6 +48,27 @@ extension PreviewPresenter {
             isSourceFocused: isSourceFocused
         )
     }
+
+    /// v0.9.0 — OCR / read-only flow. Same shape as `presentPreview`
+    /// but the primary action is "Copy", not "Paste". The default
+    /// implementation routes to `presentPreview` so existing stubs
+    /// keep working; the real controller (P5) overrides this to
+    /// relabel the action button and skip the keystroke pipeline.
+    /// Returns the user's decision; the workflow writes the confirmed
+    /// text to the clipboard.
+    func presentForCopy(
+        original: String,
+        translated: String,
+        persona: Persona,
+        isSourceFocused: @escaping @MainActor () -> Bool
+    ) async -> PreviewDecision {
+        await presentPreview(
+            original: original,
+            translated: translated,
+            persona: persona,
+            isSourceFocused: isSourceFocused
+        )
+    }
 }
 
 /// `NSPanel` subclass that can become key — required so SwiftUI's

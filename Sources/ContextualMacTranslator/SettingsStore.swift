@@ -225,6 +225,20 @@ final class SettingsStore {
         }
     }
 
+    /// v0.9.0 — single global hotkey that triggers the OCR-from-screen
+    /// translate flow. `nil` means OCR capture is disabled. Persistence
+    /// + invariant pattern identical to `pickerHotkey`.
+    var captureHotkey: HotkeyConfig? {
+        didSet {
+            guard captureHotkey != oldValue else { return }
+            if let captureHotkey {
+                persist(captureHotkey, forKey: Keys.captureHotkey)
+            } else {
+                defaults.removeObject(forKey: Keys.captureHotkey)
+            }
+        }
+    }
+
     /// Opt-in to expressive rewrite tones (v0.8.2 — "Chửi thề" / casual
     /// raw). Default OFF: only neutral tones (Polite, Professional, …)
     /// show up in the picker + binding dropdowns until enabled. The
@@ -322,6 +336,7 @@ final class SettingsStore {
         static let rewriteBindings = "translator.rewriteBindings"
         // v0.8 tone picker hotkey
         static let pickerHotkey = "translator.pickerHotkey"
+        static let captureHotkey = "translator.captureHotkey"
         // v0.8.2 expressive tones (Chửi thề)
         static let expressiveTonesEnabled = "translator.expressiveTonesEnabled"
         static let multiVariantRewriteEnabled = "translator.multiVariantRewriteEnabled"
@@ -432,6 +447,7 @@ final class SettingsStore {
         rewriteBindings = Self.loadCodable([RewriteBinding].self, defaults: defaults, key: Keys.rewriteBindings)
             ?? []
         pickerHotkey = Self.loadCodable(HotkeyConfig.self, defaults: defaults, key: Keys.pickerHotkey)
+        captureHotkey = Self.loadCodable(HotkeyConfig.self, defaults: defaults, key: Keys.captureHotkey)
 
         // v0.8.2 expressive tones — default OFF; the Settings toggle
         // shows a confirmation dialog before flipping it on.
@@ -547,6 +563,9 @@ final class SettingsStore {
         }
         if let pickerHotkey, pickerHotkey == hotkey {
             return "Tone picker"
+        }
+        if let captureHotkey, captureHotkey == hotkey {
+            return "OCR capture"
         }
         return nil
     }

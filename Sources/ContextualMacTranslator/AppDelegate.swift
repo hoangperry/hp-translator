@@ -126,6 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             _ = settings.outboundBindings
             _ = settings.rewriteBindings
             _ = settings.pickerHotkey
+            _ = settings.captureHotkey
             // Provider/source changes also affect whether rewrite hotkeys
             // get registered (see `rewriteAvailable` gate in `applyHotKeys`).
             _ = settings.translationSource
@@ -156,6 +157,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // actually rewrite — otherwise the hotkey would just fire and pop
         // an error every time. Switching back to an LLM provider triggers
         // a re-register via `observeBindingsOnce` so the hotkey returns.
+        // v0.9.0 — OCR capture hotkey. Gated on the active provider
+        // being configured (any translator works — OCR doesn't require
+        // LLM-class). User explicitly assigns the hotkey in Settings;
+        // unset = OCR disabled.
+        if let captureHotkey = settings.captureHotkey {
+            outbound.append((
+                config: captureHotkey,
+                action: { [weak self] in
+                    Task { @MainActor in
+                        await self?.workflow.captureAndTranslate()
+                    }
+                }
+            ))
+        }
+
         if settings.rewriteAvailable {
             let rewriteEntries = settings.rewriteBindings.map { binding -> (config: HotkeyConfig, action: @MainActor () -> Void) in
                 (
