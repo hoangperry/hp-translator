@@ -14,6 +14,103 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.9.0] — 2026-05-25
+
+**Input Surface Expansion.** Two new ways to invoke the translator: from
+anywhere on the system via Shortcuts.app / Spotlight / Siri (App
+Intents), and from any pixel on screen via an OCR capture hotkey.
+
+### Added — App Intents (Shortcuts.app integration)
+
+- **Three new App Intents** discoverable in Shortcuts.app under
+  "Contextual Mac Translator":
+  - **Translate Text** — translate any text in a Shortcut step;
+    target language optional (defaults to your primary language).
+  - **Rewrite with Tone** — pick from the 7 preset tones (Polite,
+    Professional, Friendly, Firm-but-polite, De-escalate, Concise,
+    Custom). Result usable in subsequent Shortcut steps.
+  - **Rewrite with Instruction** — free-text instruction
+    ("warmer reply", "shorter under 2 sentences"), mirrors the
+    in-app picker's freetext row from v0.8.3.
+- **Spotlight + Siri trigger phrases** for each action, prefixed with
+  "Contextual" so they don't collide with Apple Translate's system Siri
+  commands.
+- **TranslationIntentRouter** lets the system construct intents
+  outside the app's DI graph; the AppDelegate installs the running
+  workflow at launch so intents resolve cleanly even if fired before
+  Settings load.
+- Expressive tones (Chửi thề) deliberately excluded from the
+  Shortcuts enum — Shortcuts has no per-user gating mechanism; users
+  who want expressive rewrites can use the Instruction intent.
+
+### Added — OCR-from-screen translate
+
+- **New global hotkey** (Settings → Capture) — press, drag a region
+  with the system crosshair (same Cmd+Shift+4 UX), and the app reads
+  the text on-device via Vision, auto-detects source language via
+  NaturalLanguage, translates into your primary language, and shows
+  the result in a copy-mode PreviewHUD.
+- **Language coverage**: Vietnamese, English, Simplified Chinese,
+  Japanese, Korean — picked for the VN-power-user / VN-seller audience
+  identified in docs/v0.9.0/discovery.md (1688 / Aliwangwang /
+  Messenger / Discord workflows where browser translation breaks down).
+- **Privacy posture**: OCR runs entirely on-device. Only the
+  recognised text travels to your active translation provider — same
+  as every other translate flow. Screen pixels never leave the device.
+- **Onboarding card** in Settings → Capture with a one-click link to
+  System Settings → Privacy & Security → Screen Recording for users
+  who denied the TCC prompt.
+- **PreviewHUD copy-mode**: the Send button becomes "Copy" for OCR
+  results; the workflow writes the (possibly user-edited) translation
+  to the pasteboard. No keystroke simulation, no source-app focus
+  monitoring.
+
+### Added — What's-New window
+
+- One-shot upgrade window pops the first time you launch a new
+  minor/major version. Highlights the new features and points to where
+  to set things up. Dismissible; the seen-version is persisted so it
+  doesn't replay.
+
+### Changed
+
+- `SettingsWindowController.swift` (was 844 LOC, over the 800-line
+  guideline) — extracted `OutboundBindingRow` and `RewriteBindingRow`
+  into `SettingsBindingRows.swift`. Pure file move, no behaviour change.
+- `TranslationWorkflow` gains three headless entries
+  (`performTranslationHeadless` + `performRewriteHeadless` × 2) that
+  bypass HUD/clipboard/keystrokes. Existing flows unchanged.
+- `PreviewPresenter` protocol gains a `presentForCopy(...)` entry
+  with a default extension routing to `presentPreview(...)` — existing
+  stubs / tests keep working without modification.
+- `Info.plist` gains `NSScreenCaptureUsageDescription` (cited only
+  when the system TCC prompt fires).
+
+### Compatibility
+
+- All v0.8.5 persisted state round-trips clean (`RewriteBinding` /
+  `HotkeyConfig` / `TranslationStyle` Codable contracts unchanged).
+- Sparkle OTA from v0.6.1+ auto-updates to v0.9.0 with no manual user
+  intervention.
+
+### Build
+
+- Bundle 0.9.0 (build 26).
+
+### Tests
+
+- App: **306 Swift / 67 suites** GREEN (+36 from 270):
+  - +15 App Intents tests (mock-driven, error-mapping coverage)
+  - +16 OCR postprocessor tests (NFC diacritic preservation, paragraph
+    join, control-char strip — the core diacritic-safety guarantee)
+  - +6 NaturalLanguageDetector tests (VN / EN / zh-Hans detection,
+    confidence-threshold gate, BCP47 mapping)
+  - +3 VisionOCREngine contract tests + 1 OCRResult equality test
+- Vision integration round-trip with programmatically-rendered text
+  was attempted and discarded as flaky (Vision is trained on natural
+  screenshots, not freshly-rasterised glyphs). Real-screenshot OCR
+  quality verified via manual smoke during deliver phase.
+
 ## [0.8.5] — 2026-05-24
 
 **Multi-variant rewrite (3 drafts in one round-trip).** Opt-in setting

@@ -3,7 +3,7 @@ set -euo pipefail
 
 CONFIG="${1:-release}"
 APP_NAME="Contextual Mac Translator"
-APP_VERSION="0.8.5"
+APP_VERSION="0.9.0"
 DMG_NAME="Contextual-Mac-Translator-v${APP_VERSION}-macos-arm64.dmg"
 ZIP_NAME="Contextual-Mac-Translator-v${APP_VERSION}-macos-arm64.zip"
 VOLUME_NAME="Contextual Mac Translator"
