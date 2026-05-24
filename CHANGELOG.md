@@ -14,6 +14,70 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.9.1] — 2026-05-25
+
+**Refactor + reliability patch.** No new user-facing features; reduces
+two pieces of structural debt the v0.9.0 deliver-phase review flagged
+before they bite, and adds 13 high-leverage tests covering paths that
+silently failed before.
+
+### Changed (refactor)
+
+- **`TranslationWorkflow.swift` split (876 → 630 LOC)** — back under the
+  800-line file-size guideline before any new workflow path lands.
+  Behaviour byte-identical; the 306-test contract stays GREEN with zero
+  test modifications.
+  - **New `CaptureOrchestrator.swift`** (115 LOC) — owns the v0.9.0
+    OCR-translate flow end-to-end. `captureAndTranslate()` is now a
+    1-line delegate.
+  - **New `RewriteService.swift`** (230 LOC) — owns the rewrite
+    primitives (`rewrite` + `rewriteVariants` + the 3 headless methods
+    + the static `style(forPickerEntry:)` helper that was previously
+    duplicated in TranslationWorkflow). All call sites updated.
+
+### Fixed
+
+- **No more silent Japanese fallback** in the status-bar Send-Keigo /
+  Send-Casual menu items. A VN-primary user with no formal/casual
+  outbound binding used to get a hardcoded `.japaneseBusiness` /
+  `.japaneseCasual` translation when they triggered those items.
+  v0.9.1 surfaces an actionable error toast pointing to Settings
+  instead.
+
+### Added (tests)
+
+- **`BackendStreamingURLTests`** (9 tests) — pin every branch of
+  `BackendProvider.streamingURL(for:)`, the 4-case path rewriter the
+  review flagged as silent-fallback-prone. Covers the standard
+  `/translate` endpoint, bare root, trailing-slash, versioned paths,
+  query-string survival, non-default port survival, and the catch-all
+  edge case. Required marking `streamingURL` `nonisolated static`
+  (honest — it has no actor state).
+- **`WhatsNewHighlightsTests`** (4 tests) — pin the per-version
+  highlight catalogue introduced by v0.9.0 MED-2. Verifies v0.9.0
+  returns its 3 highlights, every other version (including future
+  v0.10.0) falls into the `nil` catch-all so AppDelegate marks the
+  version seen without popping a stale window, and the
+  lookup-vs-static-catalogue paths stay consistent.
+
+### Deferred to v0.9.2
+
+- `TranslationWorkflowClipboardRestoreTest` — needs `HUDPresenting` +
+  `Pasteboarding` protocol extraction so tests don't clobber the
+  developer's real clipboard. Worth its own refactor commit.
+- W1 from the review (`SettingsStore` god-object — extract `SaaSConfig`).
+- MED-4 (`OCREngine` protocol isolation alignment with `ScreenCaptureService`).
+- LOW-1, LOW-2 (style nits — `ScreenCaptureService` `@MainActor` strength,
+  captureHotkey synthetic-Binding consistency).
+
+### Build
+
+- Bundle 0.9.1 (build 27).
+
+### Tests
+
+- App: **319 Swift / 69 suites** GREEN (+13 from 306).
+
 ## [0.9.0] — 2026-05-25
 
 **Input Surface Expansion.** Two new ways to invoke the translator: from
