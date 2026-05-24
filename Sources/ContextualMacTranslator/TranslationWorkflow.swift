@@ -354,6 +354,79 @@ final class TranslationWorkflow {
         hudController.showResult("Sent \(style.displayName)", persona: style)
     }
 
+    // MARK: - Headless (App Intents — v0.9.0)
+
+    /// Headless translate, no HUD / clipboard / keystrokes. Used by the
+    /// `TranslateSelectionIntent` (App Intents). Returns the cleaned
+    /// translation; throws `TranslationError.missingEndpoint` when the
+    /// active provider isn't configured, or whatever the provider raised.
+    func performTranslationHeadless(text: String, targetLanguage: String) async throws -> String {
+        let translator = providerFactory()
+        guard translator.isConfigured else {
+            throw TranslationError.missingEndpoint
+        }
+        let style = TranslationStyle(
+            direction: .outbound,
+            targetLanguage: targetLanguage,
+            register: .neutral
+        )
+        let job = TranslationJob(
+            text: text,
+            style: style,
+            sourceLanguage: "auto",
+            glossary: glossaryProvider()
+        )
+        return PromptBuilder.normalize(try await translator.translate(job).translation)
+    }
+
+    /// Headless rewrite using one of the preset tones. Reuses
+    /// `performRewrite` so the refusal-retry chain applies identically.
+    /// Mirrors the in-app rewrite behaviour but skips HUD/preview/paste.
+    func performRewriteHeadless(text: String, tone: RewriteTone) async throws -> String {
+        let translator = providerFactory()
+        guard translator.isConfigured else {
+            throw TranslationError.missingEndpoint
+        }
+        // `.custom` with no instruction is invalid (same gate as the
+        // binding-hotkey path) — surface the same typed error.
+        let instruction = tone == .custom
+            ? "Rewrite this naturally and clearly while preserving the writer's intent and voice."
+            : tone.instruction
+        let label = tone == .custom ? "Rewrite (custom)" : "\(tone.displayName) rewrite"
+        let style = TranslationStyle(
+            direction: .rewrite,
+            targetLanguage: primaryLanguageProvider(),
+            register: .neutral,
+            customStyleInstruction: instruction,
+            displayLabelOverride: label,
+            allowsExpressiveContent: tone.isExpressive
+        )
+        return try await performRewrite(sourceText: text, style: style, translator: translator)
+    }
+
+    /// Headless rewrite using a free-text instruction. Mirrors the
+    /// picker's freetext-row behaviour (v0.8.3). Empty instruction
+    /// raises `RewriteError.emptyCustomInstruction` — same contract as
+    /// `rewriteAndSend`.
+    func performRewriteHeadless(text: String, instruction: String) async throws -> String {
+        let translator = providerFactory()
+        guard translator.isConfigured else {
+            throw TranslationError.missingEndpoint
+        }
+        let trimmed = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw RewriteError.emptyCustomInstruction
+        }
+        let style = TranslationStyle(
+            direction: .rewrite,
+            targetLanguage: primaryLanguageProvider(),
+            register: .neutral,
+            customStyleInstruction: trimmed,
+            displayLabelOverride: "Rewrite (your prompt)"
+        )
+        return try await performRewrite(sourceText: text, style: style, translator: translator)
+    }
+
     /// Call the provider, clean the output, and guard against refusals:
     /// one retry with a stronger anti-refusal instruction, then throw
     /// `RewriteError.refused` so the caller falls back to the original.

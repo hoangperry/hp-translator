@@ -27,7 +27,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var hotKeyManager = HotKeyManager()
 
+    /// v0.9.0 — install the running workflow into the global router so
+    /// App Intents (which the system constructs outside our DI graph)
+    /// have something to call into. Must run before the first intent
+    /// could fire, so we wire it at the very top of launch.
+    private func installAppIntentRouter() {
+        TranslationIntentRouter.shared.install(workflow)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        installAppIntentRouter()
         // The menu bar status item is now owned by the SwiftUI MenuBarExtra
         // scene in `ContextualMacTranslatorApp` — we only set up the hidden
         // main menu (Edit submenu for Cmd-C/V/X responder chain in text
