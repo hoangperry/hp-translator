@@ -8,6 +8,28 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.9.0</title>
+      <pubDate>Mon, 25 May 2026 01:41:12 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Input Surface Expansion — Shortcuts.app + OCR-from-screen</h2>
+        <p>Two new ways to call the translator. Both are opt-in.</p>
+        <ul>
+          <li><strong>Shortcuts.app, Spotlight, Siri</strong> — three new App Intents (Translate Text, Rewrite with Tone, Rewrite with Instruction) let you chain the translator into any workflow. Compose them with Raycast, Alfred, Quick Actions, Calendar automations, anything that speaks AppIntents.</li>
+          <li><strong>OCR-from-screen translate</strong> — bind a hotkey in Settings → Capture, drag the system crosshair over any text on screen, and the app reads it (on-device Vision: vi / en / zh-Hans / ja / ko) and translates it for you. Designed for Aliwangwang / 1688 / Messenger chats where browser translation breaks.</li>
+        </ul>
+        <p><strong>What's-New window</strong> pops once on first launch to point you at both. The app stays in the background — no focus stolen.</p>
+        <p>Zero-migration: every v0.8.5 setting, hotkey, binding, glossary, expressive-tones / multi-variant toggle round-trips clean.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.9.0">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.9.0/Contextual-Mac-Translator-v0.9.0-macos-arm64.zip"
+        sparkle:version="26"
+        sparkle:shortVersionString="0.9.0"
+        sparkle:edSignature="G2dIioWDLLzgiV32FpeXGIsjgR6E2K87nTJEdp5qfW79o4pdogZOjZU52ZD8kOJEaxT0WA/AOhJ78WjI297fCw==" length="2051639"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.8.5</title>
       <pubDate>Sun, 24 May 2026 04:40:03 +0700</pubDate>
       <description><![CDATA[
