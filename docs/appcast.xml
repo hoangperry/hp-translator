@@ -8,6 +8,28 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.9.2</title>
+      <pubDate>Mon, 25 May 2026 04:42:29 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Second refactor patch</h2>
+        <p>No new features. Clears the remaining W1 (HIGH), MED-4, and LOW-2 items from the v0.9.0 deliver-phase review.</p>
+        <ul>
+          <li><strong>Internal:</strong> Supabase / SaaS surface extracted from SettingsStore into a new SaaSConfig file. SettingsStore drops from 593 → 538 LOC; the Supabase concept count it owns goes from 6 to 1.</li>
+          <li><strong>Internal:</strong> ScreenCaptureService protocol shape aligned to OCREngine (plain Sendable, no @MainActor on the protocol). Cleans up the asymmetry from v0.9.0 P3.</li>
+          <li><strong>Polish:</strong> picker + capture hotkey recorder sheets now share one helper. Pre-allocated HotkeyConfig defaults replace the per-render allocations the v0.9.0 review flagged.</li>
+        </ul>
+        <p>Risk-free upgrade — same 319 tests pass with the same test bodies; UserDefaults + Keychain layout byte-identical to v0.9.1.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.9.2">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.9.2/Contextual-Mac-Translator-v0.9.2-macos-arm64.zip"
+        sparkle:version="28"
+        sparkle:shortVersionString="0.9.2"
+        sparkle:edSignature="gIG5NLGlPWx7jLLI3y0qjm2zcM2zyLIbhImpJf7IAHWk5MtJcVVAVHGlrirulPFIefOXkd/H0D/DMPQt7QG9AA==" length="2055486"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.9.1</title>
       <pubDate>Mon, 25 May 2026 02:43:21 +0700</pubDate>
       <description><![CDATA[
