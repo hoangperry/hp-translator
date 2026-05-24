@@ -276,17 +276,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Status-bar fallback for the first outbound binding marked
+    /// formal. v0.9.1 (LOW-1 fix) — no-op when the user has no formal
+    /// outbound binding configured, instead of falling back to a
+    /// hardcoded Japanese style. The pre-v0.9.1 fallback would surprise
+    /// a Vietnamese-primary user with a Japanese-registered translation
+    /// out of nowhere.
     @objc func sendKeigo() {
         Task { @MainActor in
-            // Status-bar fallback for first outbound binding marked formal.
-            let style: TranslationStyle = SettingsStore.shared.outboundBindings.first(where: { $0.register == .formal })?.style() ?? .japaneseBusiness
+            guard let style = SettingsStore.shared.outboundBindings
+                .first(where: { $0.register == .formal })?.style() else {
+                hudController.showError(
+                    "No formal outbound binding configured. Set one up in Settings → Translation bindings."
+                )
+                return
+            }
             await workflow.translateAndSend(persona: style)
         }
     }
 
+    /// Same pattern as `sendKeigo` for casual register.
     @objc func sendCasual() {
         Task { @MainActor in
-            let style: TranslationStyle = SettingsStore.shared.outboundBindings.first(where: { $0.register == .casual })?.style() ?? .japaneseCasual
+            guard let style = SettingsStore.shared.outboundBindings
+                .first(where: { $0.register == .casual })?.style() else {
+                hudController.showError(
+                    "No casual outbound binding configured. Set one up in Settings → Translation bindings."
+                )
+                return
+            }
             await workflow.translateAndSend(persona: style)
         }
     }
