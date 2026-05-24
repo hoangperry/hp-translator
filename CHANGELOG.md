@@ -14,6 +14,62 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.9.2] — 2026-05-25
+
+**Second refactor patch.** No new user-facing features; clears the
+remaining HIGH + MED + LOW items from the v0.9.0 deliver-phase review
+that v0.9.1 deferred. **Risk-free upgrade** — 319/69 tests stay GREEN
+with the same test bodies; storage layout (UserDefaults + Keychain)
+is byte-identical so every v0.9.x setting round-trips clean.
+
+### Changed (refactor)
+
+- **`SettingsStore` god-object trimmed (W1, HIGH)** — extracted the
+  Supabase project URL + anon key + the 4 SaaS factory helpers
+  (`authConfig` / `makeSessionStore` / `translateEndpoint` /
+  `deviceIdentity`) into a new `Auth/SaaSConfig.swift`. SettingsStore
+  drops from 593 → 538 LOC and from owning 6 Supabase concepts down
+  to 1 (just a `saaSConfig` reference). Future SaaS-only changes
+  now live in one file. Call sites migrated from `settings.supabaseURL`
+  → `settings.saaSConfig.supabaseURL`, etc. (4 production + 2 test
+  files).
+- **`ScreenCaptureService` protocol shape aligned to `OCREngine`
+  (MED-4)** — dropped the unnecessary `@MainActor` + `AnyObject`
+  requirements from the protocol. Production impl is still
+  `@MainActor` where it needs to be; stubs in tests can now be plain
+  structs. Cleans up the asymmetry that gave HIGH-2 its root cause
+  (HIGH-2 itself was already fixed in v0.9.0 via `Task.detached`).
+
+### Fixed
+
+- **Picker + capture hotkey recorder sheets share one helper now
+  (LOW-2)** — centralised the synthetic `Binding<HotkeyConfig>`
+  pattern into `optionalHotkeyBinding(_:fallback:)` on `SettingsView`.
+  Pre-allocated `HotkeyConfig.defaultPicker` / `.defaultCapture`
+  constants replace the per-render allocations the v0.9.0 review
+  flagged. New picker-style hotkeys can now ride the helper instead
+  of re-inlining the boilerplate.
+
+### Deferred to v0.9.3+
+
+- `TranslationWorkflowClipboardRestoreTest` — still needs
+  `HUDPresenting` + `Pasteboarding` protocol extractions (its own
+  refactor commit).
+- Hardcoded Supabase anon-key + URL move to build-time `.xcconfig`
+  (now that SaaSConfig is its own file, this becomes a one-line
+  init-default change + a CI secret wiring step).
+- macOS What's-New highlights catalogue for future versions
+  (mechanism in place since v0.9.0; just needs the next minor's
+  copy).
+
+### Build
+
+- Bundle 0.9.2 (build 28).
+
+### Tests
+
+- App: **319 Swift / 69 suites** GREEN (unchanged from v0.9.1).
+
 ## [0.9.1] — 2026-05-25
 
 **Refactor + reliability patch.** No new user-facing features; reduces
