@@ -8,6 +8,21 @@ enum PreviewDecision: Equatable, Sendable {
     case cancel
 }
 
+/// v0.9.0 — how the preview HUD should present its primary action.
+///
+///   • `.send` — the existing translate / rewrite flow. Button reads
+///     "Send"; on confirmation the workflow pastes + presses Enter
+///     into the source app.
+///   • `.copy` — the OCR-translate flow. Button reads "Copy"; on
+///     confirmation the workflow writes the text to the clipboard
+///     and shows a success toast. No keystroke simulation.
+///
+/// Default is `.send` to keep every existing call site byte-identical.
+enum PreviewPresentationMode: Sendable {
+    case send
+    case copy
+}
+
 /// Protocol so `TranslationWorkflow` can be tested with a stubbed preview UI.
 @MainActor
 protocol PreviewPresenter: AnyObject {
@@ -155,7 +170,33 @@ final class PreviewHUDController: PreviewPresenter {
                 original: original,
                 variants: variants.isEmpty ? [""] : variants,
                 persona: persona,
+                mode: .send,
                 isSourceFocused: isSourceFocused,
+                continuation: continuation
+            )
+        }
+    }
+
+    /// v0.9.0 — OCR / read-only flow. Same NSPanel mechanics as
+    /// `presentVariants`, with two deltas:
+    ///   1. The view-model is constructed with `.copy` mode so the
+    ///      action button reads "Copy" instead of "Send".
+    ///   2. `isSourceFocused` is bypassed — OCR isn't tied to a source
+    ///      app, so the 5s focus-loss auto-cancel doesn't apply. The
+    ///      user dismisses manually (Esc, Cancel, or the action).
+    func presentForCopy(
+        original: String,
+        translated: String,
+        persona: Persona,
+        isSourceFocused: @escaping @MainActor () -> Bool
+    ) async -> PreviewDecision {
+        await withCheckedContinuation { continuation in
+            show(
+                original: original,
+                variants: [translated],
+                persona: persona,
+                mode: .copy,
+                isSourceFocused: { true },   // disable focus-loss timeout
                 continuation: continuation
             )
         }
@@ -165,13 +206,15 @@ final class PreviewHUDController: PreviewPresenter {
         original: String,
         variants: [String],
         persona: Persona,
+        mode: PreviewPresentationMode,
         isSourceFocused: @escaping @MainActor () -> Bool,
         continuation: CheckedContinuation<PreviewDecision, Never>
     ) {
         let model = PreviewHUDViewModel(
             original: original,
             variants: variants,
-            persona: persona
+            persona: persona,
+            mode: mode
         )
 
         var resolved = false
@@ -284,6 +327,11 @@ final class PreviewHUDController: PreviewPresenter {
 final class PreviewHUDViewModel {
     let original: String
     let persona: Persona
+    /// v0.9.0 — controls the action-button label (Send vs Copy) and
+    /// signals to the workflow whether the result should be pasted
+    /// (`.send`) or written to the clipboard (`.copy`). Default
+    /// `.send` keeps every pre-v0.9.0 call site byte-identical.
+    let mode: PreviewPresentationMode
     /// v0.8.5 — every variant the LLM produced (always ≥1; single-rewrite
     /// flow stores a one-element list). Edits to the active variant are
     /// captured in `variants[selectedIndex]` so paging back-and-forth
@@ -297,13 +345,23 @@ final class PreviewHUDViewModel {
     var onCancel: () -> Void = {}
 
     convenience init(original: String, translated: String, persona: Persona) {
-        self.init(original: original, variants: [translated], persona: persona)
+        self.init(original: original, variants: [translated], persona: persona, mode: .send)
     }
 
-    init(original: String, variants: [String], persona: Persona) {
+    convenience init(original: String, variants: [String], persona: Persona) {
+        self.init(original: original, variants: variants, persona: persona, mode: .send)
+    }
+
+    init(
+        original: String,
+        variants: [String],
+        persona: Persona,
+        mode: PreviewPresentationMode
+    ) {
         self.original = original
         self.persona = persona
         self.variants = variants.isEmpty ? [""] : variants
+        self.mode = mode
     }
 
     /// Whether to show the variant pager UI (chip + ← → + ⌘N hints).
@@ -447,7 +505,10 @@ struct PreviewHUDView: View {
                 Spacer()
                 Button("Cancel") { model.onCancel() }
                     .keyboardShortcut(.cancelAction)
-                Button("Send") { model.onSend() }
+                // v0.9.0 — action label tracks the presentation mode:
+                // .send (default) → "Send" (paste + Enter into source app)
+                // .copy (OCR flow) → "Copy" (write translation to clipboard)
+                Button(model.mode == .copy ? "Copy" : "Send") { model.onSend() }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
             }
