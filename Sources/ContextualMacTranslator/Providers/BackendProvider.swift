@@ -248,7 +248,10 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
     /// Compose the `/translate/stream` URL from the configured `/translate`
     /// endpoint. Falls back to appending `/translate/stream` if the user
     /// configured a non-standard path.
-    static func streamingURL(for endpoint: URL) -> URL {
+    ///
+    /// `nonisolated` so the pure URL-rewriting can be unit-tested from
+    /// any actor context without `await`.
+    nonisolated static func streamingURL(for endpoint: URL) -> URL {
         var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) ?? URLComponents()
         let path = components.path
         if path.hasSuffix("/translate") {
