@@ -36,11 +36,11 @@ final class SupabaseAuthViewModel {
     /// Build a service from current settings config. `nil` when the project
     /// URL / anon key are not configured.
     private func makeService() -> SupabaseAuthService? {
-        guard let config = settings.supabaseAuthConfig() else { return nil }
+        guard let config = settings.saaSConfig.authConfig() else { return nil }
         return SupabaseAuthService(
             config: config,
             session: urlSession,
-            store: settings.makeSupabaseSessionStore()
+            store: settings.saaSConfig.makeSessionStore()
         )
     }
 
@@ -60,7 +60,7 @@ final class SupabaseAuthViewModel {
     /// One-click pairing: open the browser, let the user authorize on the
     /// web, capture the session via loopback. No email/code typed in the app.
     func connectViaBrowser() async {
-        guard let config = settings.supabaseAuthConfig(),
+        guard let config = settings.saaSConfig.authConfig(),
               let dashboard = URL(string: SettingsStore.ProviderDefaults.dashboardURL) else {
             phase = .error("Cloud backend is not configured.")
             return
@@ -69,7 +69,7 @@ final class SupabaseAuthViewModel {
         let service = DeviceConnectService(
             config: config,
             dashboardURL: dashboard,
-            store: settings.makeSupabaseSessionStore(),
+            store: settings.saaSConfig.makeSessionStore(),
             session: urlSession
         )
         do {

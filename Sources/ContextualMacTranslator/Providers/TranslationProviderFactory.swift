@@ -127,13 +127,13 @@ final class TranslationProviderFactory {
             // the latest session from the Keychain store and feed
             // BackendProvider a refreshing access-token closure.
             if settings.backendAuthMode == .saasSupabaseSession,
-               let config = settings.supabaseAuthConfig() {
+               let config = settings.saaSConfig.authConfig() {
                 let authService = SupabaseAuthService(
                     config: config,
                     session: session,
-                    store: settings.makeSupabaseSessionStore()
+                    store: settings.saaSConfig.makeSessionStore()
                 )
-                let endpoint = settings.supabaseTranslateEndpoint
+                let endpoint = settings.saaSConfig.translateEndpoint
                 return BackendProvider(
                     settings: settings,
                     session: session,
@@ -141,7 +141,7 @@ final class TranslationProviderFactory {
                     endpointOverride: { endpoint },
                     accessTokenProvider: { try await authService.currentAccessToken() },
                     deviceIdentityProvider: { [weak settings] in
-                        settings?.deviceIdentity()
+                        settings?.saaSConfig.deviceIdentity()
                             ?? DeviceIdentity(deviceID: "", deviceName: "Mac", osVersion: "")
                     }
                 )

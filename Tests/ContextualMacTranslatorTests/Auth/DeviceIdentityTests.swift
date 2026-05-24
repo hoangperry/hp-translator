@@ -34,21 +34,21 @@ struct SettingsStoreDeviceIdentityTests {
 
     @Test("deviceID is a valid UUID string")
     func deviceIDIsUUID() {
-        let identity = makeSettings().deviceIdentity()
+        let identity = makeSettings().saaSConfig.deviceIdentity()
         #expect(UUID(uuidString: identity.deviceID) != nil)
     }
 
     @Test("deviceID is stable across calls — persisted in Keychain")
     func deviceIDStable() {
         let settings = makeSettings()
-        let first = settings.deviceIdentity().deviceID
-        let second = settings.deviceIdentity().deviceID
+        let first = settings.saaSConfig.deviceIdentity().deviceID
+        let second = settings.saaSConfig.deviceIdentity().deviceID
         #expect(first == second)
     }
 
     @Test("device name + os version are non-empty")
     func labelsPopulated() {
-        let identity = makeSettings().deviceIdentity()
+        let identity = makeSettings().saaSConfig.deviceIdentity()
         #expect(!identity.deviceName.isEmpty)
         #expect(!identity.osVersion.isEmpty)
     }

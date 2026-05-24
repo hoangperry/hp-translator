@@ -412,6 +412,12 @@ struct HotkeyConfig: Codable, Equatable, Hashable, Sendable {
     static let defaultInbound = HotkeyConfig(keyCode: kVK_ANSI_D, modifiers: optionKey)
     static let defaultOutboundFormal = HotkeyConfig(keyCode: kVK_Return, modifiers: cmdKey)
     static let defaultOutboundCasual = HotkeyConfig(keyCode: kVK_Return, modifiers: optionKey)
+    /// v0.9.2 — suggested defaults surfaced by the Settings UI when the
+    /// user opens the picker / capture recorder sheet for the first
+    /// time. Pre-allocated `static let` so the synthetic `Binding` in
+    /// `SettingsWindowController` doesn't allocate per SwiftUI render.
+    static let defaultPicker = HotkeyConfig(keyCode: kVK_Return, modifiers: cmdKey | optionKey)
+    static let defaultCapture = HotkeyConfig(keyCode: kVK_ANSI_G, modifiers: cmdKey | optionKey)
 }
 
 // MARK: - Bindings

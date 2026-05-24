@@ -70,21 +70,10 @@ final class SettingsStore {
         }
     }
 
-    /// Supabase project URL — public value, e.g. `https://<ref>.supabase.co`.
-    var supabaseURL: String {
-        didSet {
-            guard supabaseURL != oldValue else { return }
-            defaults.set(supabaseURL, forKey: Keys.supabaseURL)
-        }
-    }
-
-    /// Supabase anon key — public by design (RLS protects data server-side).
-    var supabaseAnonKey: String {
-        didSet {
-            guard supabaseAnonKey != oldValue else { return }
-            defaults.set(supabaseAnonKey, forKey: Keys.supabaseAnonKey)
-        }
-    }
+    /// v0.9.2 — Supabase project URL + anon key + auth-config /
+    /// session-store / translate-endpoint / device-identity helpers
+    /// extracted to `SaaSConfig`. Reach them via `settings.saaSConfig`.
+    let saaSConfig: SaaSConfig
 
     // MARK: Direct providers — Gemini
 
@@ -325,8 +314,7 @@ final class SettingsStore {
         static let firstPartyEndpoint = "translator.firstParty.endpoint"
         // SaaS cloud auth (M2.1)
         static let backendAuthMode = "translator.backendAuthMode"
-        static let supabaseURL = "translator.supabase.url"
-        static let supabaseAnonKey = "translator.supabase.anonKey"
+        // (v0.9.2 — supabase URL/anonKey keys live on `SaaSConfig.Keys`)
         // Gemini
         static let geminiModel = "translator.gemini.model"
         // Ollama
@@ -370,8 +358,7 @@ final class SettingsStore {
         static let libreTranslateAPIKey = "libretranslate-api-key"
         // Shared
         static let glossary = "default-glossary"
-        // SaaS device identity (M2.1-c)
-        static let deviceID = "saas-device-id"
+        // (v0.9.2 — deviceID Keychain account lives on `SaaSConfig.Accounts`)
     }
 
     /// Default endpoint points to the reference backend running locally so
@@ -426,11 +413,17 @@ final class SettingsStore {
         firstPartyEndpoint = defaults.string(forKey: Keys.firstPartyEndpoint) ?? ""
         firstPartyToken = (try? keychain.read(account: Accounts.firstPartyToken)) ?? ""
 
-        // SaaS cloud auth (M2.1)
+        // SaaS cloud auth (M2.1) — supabase URL/anon key + auth-config /
+        // session-store / translate-endpoint / device-identity all live
+        // on `SaaSConfig` (extracted in v0.9.2).
         backendAuthMode = defaults.string(forKey: Keys.backendAuthMode)
             .flatMap(BackendAuthMode.init(rawValue:)) ?? .selfHostStaticToken
-        supabaseURL = defaults.string(forKey: Keys.supabaseURL) ?? ProviderDefaults.supabaseURL
-        supabaseAnonKey = defaults.string(forKey: Keys.supabaseAnonKey) ?? ProviderDefaults.supabaseAnonKey
+        saaSConfig = SaaSConfig(
+            defaults: defaults,
+            keychain: keychain,
+            defaultSupabaseURL: ProviderDefaults.supabaseURL,
+            defaultSupabaseAnonKey: ProviderDefaults.supabaseAnonKey
+        )
 
         // Direct providers
         geminiAPIKey = (try? keychain.read(account: Accounts.geminiAPIKey)) ?? ""
@@ -507,51 +500,9 @@ final class SettingsStore {
         }
     }
 
-    // MARK: SaaS cloud auth helpers (M2.1)
-
-    /// Build a `SupabaseAuthConfig` from the configured project URL + anon
-    /// key. Returns `nil` when either is missing.
-    func supabaseAuthConfig() -> SupabaseAuthConfig? {
-        let url = supabaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let key = supabaseAnonKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !url.isEmpty, !key.isEmpty, let parsed = URL(string: url) else {
-            return nil
-        }
-        return SupabaseAuthConfig(baseURL: parsed, anonKey: key)
-    }
-
-    /// Keychain-backed Supabase session store. Shared source of truth — both
-    /// the Settings sign-in flow and the per-translation provider read it.
-    func makeSupabaseSessionStore() -> KeychainSupabaseSessionStore {
-        KeychainSupabaseSessionStore(keychain: keychain)
-    }
-
-    /// SaaS `/translate` Edge Function endpoint derived from the project URL.
-    var supabaseTranslateEndpoint: String {
-        let base = supabaseURL
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return base.isEmpty ? "" : base + "/functions/v1/translate"
-    }
-
-    /// Stable device identity for SaaS device registration (M2.1-c). The
-    /// device id is generated once and persisted in the Keychain; later
-    /// calls return the same id.
-    func deviceIdentity() -> DeviceIdentity {
-        let stored = (try? keychain.read(account: Accounts.deviceID)) ?? nil
-        let id: String
-        if let stored, !stored.isEmpty {
-            id = stored
-        } else {
-            id = UUID().uuidString
-            try? keychain.write(id, account: Accounts.deviceID)
-        }
-        return DeviceIdentity(
-            deviceID: id,
-            deviceName: Host.current().localizedName ?? "Mac",
-            osVersion: ProcessInfo.processInfo.operatingSystemVersionString
-        )
-    }
+    // v0.9.2 — SaaS cloud auth helpers extracted to `SaaSConfig`.
+    // Access via `settings.saaSConfig.{authConfig(), makeSessionStore(),
+    // translateEndpoint, deviceIdentity()}`.
 
     // MARK: Conflict detection
 

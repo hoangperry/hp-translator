@@ -40,8 +40,8 @@ private func makeViewModel(
         keychain: KeychainCredentialStore(service: "vm-tests.\(UUID().uuidString)")
     )
     if configured {
-        settings.supabaseURL = "https://stub.supabase.co"
-        settings.supabaseAnonKey = "anon-key"
+        settings.saaSConfig.supabaseURL = "https://stub.supabase.co"
+        settings.saaSConfig.supabaseAnonKey = "anon-key"
     } else {
         // SettingsStore.init falls back to ProviderDefaults.supabaseURL when
         // UserDefaults has no value at the key — so a "fresh" suite is
@@ -52,8 +52,8 @@ private func makeViewModel(
         // happened to be installing. Explicitly empty both fields so
         // `SupabaseAuthViewModel.makeService` returns `nil` and `sendCode`
         // short-circuits to `.error` deterministically.
-        settings.supabaseURL = ""
-        settings.supabaseAnonKey = ""
+        settings.saaSConfig.supabaseURL = ""
+        settings.saaSConfig.supabaseAnonKey = ""
     }
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [VMAuthStubProtocol.self]

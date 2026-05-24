@@ -97,9 +97,9 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $pickerRecorderShown) {
             HotkeyRecorderSheet(
-                hotkey: Binding<HotkeyConfig>(
-                    get: { settings.pickerHotkey ?? HotkeyConfig(keyCode: kVK_Return, modifiers: cmdKey | optionKey) },
-                    set: { settings.pickerHotkey = $0 }
+                hotkey: optionalHotkeyBinding(
+                    \.pickerHotkey,
+                    fallback: HotkeyConfig.defaultPicker
                 ),
                 isPresented: $pickerRecorderShown,
                 ownerBindingID: nil
@@ -110,9 +110,9 @@ struct SettingsView: View {
         // the first time; saved on confirm.
         .sheet(isPresented: $captureRecorderShown) {
             HotkeyRecorderSheet(
-                hotkey: Binding<HotkeyConfig>(
-                    get: { settings.captureHotkey ?? HotkeyConfig(keyCode: kVK_ANSI_G, modifiers: cmdKey | optionKey) },
-                    set: { settings.captureHotkey = $0 }
+                hotkey: optionalHotkeyBinding(
+                    \.captureHotkey,
+                    fallback: HotkeyConfig.defaultCapture
                 ),
                 isPresented: $captureRecorderShown,
                 ownerBindingID: nil
@@ -696,6 +696,21 @@ struct SettingsView: View {
             return
         }
         NSWorkspace.shared.open(url)
+    }
+
+    /// v0.9.2 — synthetic `Binding<HotkeyConfig>` over an optional
+    /// settings property with a pre-allocated fallback. Centralises the
+    /// pattern shared by the picker + capture recorder sheets so they
+    /// stay byte-identical, and avoids allocating a new HotkeyConfig
+    /// per SwiftUI render pass (LOW-2 from the v0.9.0 review).
+    private func optionalHotkeyBinding(
+        _ keyPath: ReferenceWritableKeyPath<SettingsStore, HotkeyConfig?>,
+        fallback: HotkeyConfig
+    ) -> Binding<HotkeyConfig> {
+        Binding<HotkeyConfig>(
+            get: { settings[keyPath: keyPath] ?? fallback },
+            set: { settings[keyPath: keyPath] = $0 }
+        )
     }
 }
 

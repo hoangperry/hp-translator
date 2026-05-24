@@ -13,8 +13,13 @@ enum ScreenCaptureResult: Sendable {
 /// Protocol so the OCR workflow can be tested with a stubbed capture
 /// surface (fixed image, fixed cancellation) without spawning the real
 /// screen-region crosshair.
-@MainActor
-protocol ScreenCaptureService: AnyObject, Sendable {
+///
+/// v0.9.2 — dropped `@MainActor` + `AnyObject` from the protocol
+/// (alignment with `OCREngine` per MED-4). The method is `async` so
+/// callers can await it from any actor context; the production impl
+/// (`SystemScreenCaptureService`) is still `@MainActor` because it
+/// holds class state, but stubs in tests can be plain structs.
+protocol ScreenCaptureService: Sendable {
     /// Show the OS region-selection crosshair and return the captured
     /// `CGImage`. Returns `.cancelled` when the user hits Escape, or
     /// `.failed(reason)` on any subprocess / decoding error.
