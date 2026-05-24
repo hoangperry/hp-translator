@@ -39,6 +39,11 @@ final class TranslationWorkflow {
     private let ocrEngine: OCREngine
     /// v0.9.0 — NLLanguageRecognizer wrapper for auto-detecting OCR'd text.
     private let languageDetector: LanguageDetector
+    /// v0.9.1 — rewrite primitives (single-shot + multi-variant +
+    /// headless) extracted from this file. Constructed in the init
+    /// below from the same providerFactory/glossaryProvider/
+    /// primaryLanguageProvider seams.
+    private let rewriteService: RewriteService
 
     /// Production initialiser — wires `providerFactory` to a closure that
     /// resolves the active provider every call.
@@ -76,6 +81,11 @@ final class TranslationWorkflow {
         self.captureService = captureService
         self.ocrEngine = ocrEngine
         self.languageDetector = languageDetector
+        self.rewriteService = RewriteService(
+            providerFactory: providerFactory,
+            primaryLanguageProvider: primaryLanguageProvider,
+            glossaryProvider: glossaryProvider
+        )
     }
 
     /// Convenience initialiser for callers that hold a fixed provider —
@@ -321,7 +331,7 @@ final class TranslationWorkflow {
 
         let variants: [String]
         do {
-            variants = try await performRewriteVariants(sourceText: sourceText, style: style, translator: translator)
+            variants = try await rewriteService.rewriteVariants(sourceText: sourceText, style: style, translator: translator)
         } catch {
             pasteboard.restore(snapshot)
             hudController.showError(error.localizedDescription)
@@ -375,154 +385,23 @@ final class TranslationWorkflow {
     }
 
     // MARK: - Headless (App Intents — v0.9.0)
+    //
+    // These three façade methods preserve the public contract of the
+    // headless workflow that App Intents call into. Bodies live in
+    // `RewriteService` (extracted in v0.9.1) so the rewrite primitives
+    // can be unit-tested + reused without dragging the rest of this
+    // workflow's clipboard/keystroke machinery into the test setup.
 
-    /// Headless translate, no HUD / clipboard / keystrokes. Used by the
-    /// `TranslateSelectionIntent` (App Intents). Returns the cleaned
-    /// translation; throws `TranslationError.missingEndpoint` when the
-    /// active provider isn't configured, or whatever the provider raised.
     func performTranslationHeadless(text: String, targetLanguage: String) async throws -> String {
-        let translator = providerFactory()
-        guard translator.isConfigured else {
-            throw TranslationError.missingEndpoint
-        }
-        let style = TranslationStyle(
-            direction: .outbound,
-            targetLanguage: targetLanguage,
-            register: .neutral
-        )
-        let job = TranslationJob(
-            text: text,
-            style: style,
-            sourceLanguage: "auto",
-            glossary: glossaryProvider()
-        )
-        return PromptBuilder.normalize(try await translator.translate(job).translation)
+        try await rewriteService.translateHeadless(text: text, targetLanguage: targetLanguage)
     }
 
-    /// Headless rewrite using one of the preset tones. Reuses
-    /// `performRewrite` so the refusal-retry chain applies identically.
-    /// Mirrors the in-app rewrite behaviour but skips HUD/preview/paste.
     func performRewriteHeadless(text: String, tone: RewriteTone) async throws -> String {
-        let translator = providerFactory()
-        guard translator.isConfigured else {
-            throw TranslationError.missingEndpoint
-        }
-        // `.custom` with no instruction is invalid (same gate as the
-        // binding-hotkey path) — surface the same typed error.
-        let instruction = tone == .custom
-            ? "Rewrite this naturally and clearly while preserving the writer's intent and voice."
-            : tone.instruction
-        let label = tone == .custom ? "Rewrite (custom)" : "\(tone.displayName) rewrite"
-        let style = TranslationStyle(
-            direction: .rewrite,
-            targetLanguage: primaryLanguageProvider(),
-            register: .neutral,
-            customStyleInstruction: instruction,
-            displayLabelOverride: label,
-            allowsExpressiveContent: tone.isExpressive
-        )
-        return try await performRewrite(sourceText: text, style: style, translator: translator)
+        try await rewriteService.rewriteHeadless(text: text, tone: tone)
     }
 
-    /// Headless rewrite using a free-text instruction. Mirrors the
-    /// picker's freetext-row behaviour (v0.8.3). Empty instruction
-    /// raises `RewriteError.emptyCustomInstruction` — same contract as
-    /// `rewriteAndSend`.
     func performRewriteHeadless(text: String, instruction: String) async throws -> String {
-        let translator = providerFactory()
-        guard translator.isConfigured else {
-            throw TranslationError.missingEndpoint
-        }
-        let trimmed = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            throw RewriteError.emptyCustomInstruction
-        }
-        let style = TranslationStyle(
-            direction: .rewrite,
-            targetLanguage: primaryLanguageProvider(),
-            register: .neutral,
-            customStyleInstruction: trimmed,
-            displayLabelOverride: "Rewrite (your prompt)"
-        )
-        return try await performRewrite(sourceText: text, style: style, translator: translator)
-    }
-
-    /// Call the provider, clean the output, and guard against refusals:
-    /// one retry with a stronger anti-refusal instruction, then throw
-    /// `RewriteError.refused` so the caller falls back to the original.
-    private func performRewrite(
-        sourceText: String,
-        style: TranslationStyle,
-        translator: any TranslationProvider
-    ) async throws -> String {
-        let firstJob = TranslationJob(
-            text: sourceText,
-            style: style,
-            sourceLanguage: primaryLanguageProvider(),
-            glossary: glossaryProvider()
-        )
-        let first = RewriteResultProcessor.clean(try await translator.translate(firstJob).translation)
-        if !RewriteResultProcessor.isLikelyRefusal(first) {
-            return first
-        }
-
-        // Retry once — reframe even harder that this is the user's own draft.
-        let retryStyle = TranslationStyle(
-            direction: .rewrite,
-            targetLanguage: style.targetLanguage,
-            register: style.register,
-            customStyleInstruction: style.styleInstruction
-                + "\n\nThis is the user's OWN draft, provided for tone editing only. Rewrite it in the requested tone. Do not decline, do not explain, do not comment.",
-            displayLabelOverride: style.displayLabelOverride
-        )
-        let retryJob = TranslationJob(
-            text: sourceText,
-            style: retryStyle,
-            sourceLanguage: primaryLanguageProvider(),
-            glossary: glossaryProvider()
-        )
-        let second = RewriteResultProcessor.clean(try await translator.translate(retryJob).translation)
-        if !RewriteResultProcessor.isLikelyRefusal(second) {
-            return second
-        }
-        throw RewriteError.refused
-    }
-
-    /// v0.8.5 — variant-aware rewrite entry. When `style.variantCount`
-    /// is 1, delegates to the single-draft `performRewrite` and wraps
-    /// the result in a one-element array (so the rest of the workflow
-    /// can stay uniform). When >1, asks the model for N drafts in one
-    /// round-trip + parses the response with the sentinel-based splitter.
-    /// Falls back to single-draft retry if parsing yields <2 usable
-    /// variants, so a model that ignored the multi-variant prompt still
-    /// produces something usable.
-    private func performRewriteVariants(
-        sourceText: String,
-        style: TranslationStyle,
-        translator: any TranslationProvider
-    ) async throws -> [String] {
-        guard style.variantCount > 1 else {
-            let single = try await performRewrite(sourceText: sourceText, style: style, translator: translator)
-            return [single]
-        }
-        let job = TranslationJob(
-            text: sourceText,
-            style: style,
-            sourceLanguage: primaryLanguageProvider(),
-            glossary: glossaryProvider()
-        )
-        let raw = try await translator.translate(job).translation
-        let parsed = RewriteResultProcessor.splitVariants(raw)
-        if parsed.count >= 2 {
-            // Cap to the requested count — some models over-deliver.
-            return Array(parsed.prefix(style.variantCount))
-        }
-        // Model ignored the multi-variant prompt OR everything got
-        // filtered as refusals. Fall back to a single-draft pass with
-        // the anti-refusal retry chain so the user still gets a result.
-        let fallbackStyle = style.withVariantCount(1)
-        let single = try await performRewrite(sourceText: sourceText, style: fallbackStyle, translator: translator)
-        return [single]
+        try await rewriteService.rewriteHeadless(text: text, instruction: instruction)
     }
 
     // MARK: - OCR capture (v0.9.0)
@@ -531,101 +410,22 @@ final class TranslationWorkflow {
     /// language, translate into the user's primary language, surface
     /// the result in the PreviewHUD.
     ///
-    /// This is a READ flow, not a SEND flow — the user is consuming
-    /// foreign text from the screen, not authoring a message. The HUD
-    /// is presented in `.copy` mode (P5) so its primary action is
-    /// "Copy", not "Paste". No keystroke simulation, no clipboard
-    /// snapshot/restore dance: the system `screencapture` tool owns
-    /// the capture UX, and the OCR'd text never touches the user's
-    /// clipboard until they explicitly choose to copy from the HUD.
+    /// v0.9.1 — implementation extracted to `CaptureOrchestrator` to
+    /// keep this file under the 800-line guideline. This facade just
+    /// constructs an orchestrator with the workflow's injected
+    /// dependencies and runs it.
     func captureAndTranslate() async {
-        let translator = providerFactory()
-        guard translator.isConfigured else {
-            hudController.showError(TranslationError.missingEndpoint.localizedDescription)
-            return
-        }
-
-        // Capture — system tool owns crosshair + permission UX.
-        let captureResult = await captureService.captureRegion()
-        let image: CGImage
-        switch captureResult {
-        case .captured(let img):
-            image = img
-        case .cancelled:
-            // User pressed Esc on the crosshair. Quiet exit — no toast.
-            return
-        case .failed(let reason):
-            hudController.showError("Couldn't capture screen: \(reason)")
-            return
-        }
-
-        let target = primaryLanguageProvider()
-        let initialStyle = TranslationStyle(
-            direction: .inbound,
-            targetLanguage: target,
-            register: .neutral
-        )
-        hudController.showLoading("Reading text from screen...", persona: initialStyle)
-
-        // OCR — Vision pipeline.
-        let ocrResult = await ocrEngine.recognizeText(in: image)
-        let sourceText: String
-        switch ocrResult {
-        case .recognized(let text):
-            sourceText = text
-        case .nothingDetected:
-            // Dismiss the loading HUD before swapping to error so the
-            // user doesn't see both stacked (mirrors the translation-
-            // failure path below).
-            hudController.dismiss()
-            hudController.showError("No text detected in that region.")
-            return
-        case .failed(let reason):
-            hudController.dismiss()
-            hudController.showError("OCR failed: \(reason)")
-            return
-        }
-
-        // Detect language on-device so the provider gets the right hint.
-        let sourceLanguage = languageDetector.detectLanguage(in: sourceText)
-
-        let job = TranslationJob(
-            text: sourceText,
-            style: initialStyle,
-            sourceLanguage: sourceLanguage,
-            glossary: glossaryProvider()
-        )
-
-        let translation: String
-        do {
-            translation = try await translator.translate(job).translation
-        } catch {
-            hudController.showError(error.localizedDescription)
-            return
-        }
-
-        hudController.dismiss()
-        // PreviewHUD in copy-mode — the user's primary action is
-        // "Copy translation to clipboard", not "Paste into focused app".
-        // P5 specialises the real PreviewHUDController to relabel the
-        // button; the default-extension route just goes through the
-        // standard `presentPreview`. In both cases the workflow writes
-        // the confirmed text to the clipboard on `.send` and shows a
-        // success toast.
-        let decision = await previewPresenter.presentForCopy(
-            original: sourceText,
-            translated: PromptBuilder.normalize(translation),
-            persona: initialStyle,
-            isSourceFocused: { true }    // OCR isn't tied to a source app
-        )
-        switch decision {
-        case .send(let confirmed):
-            pasteboard.writeString(confirmed)
-            hudController.showResult("Copied translation to clipboard", persona: initialStyle)
-        case .cancel:
-            // No clipboard write, no toast — silent dismissal.
-            return
-        }
+        await CaptureOrchestrator(
+            providerFactory: providerFactory,
+            hudController: hudController,
+            pasteboard: pasteboard,
+            previewPresenter: previewPresenter,
+            captureService: captureService,
+            ocrEngine: ocrEngine,
+            languageDetector: languageDetector,
+            glossaryProvider: glossaryProvider,
+            primaryLanguageProvider: primaryLanguageProvider
+        ).run()
     }
 
     // MARK: - Tone picker (v0.8)
@@ -705,7 +505,7 @@ final class TranslationWorkflow {
             return
         }
 
-        let baseStyle = Self.style(forPickerEntry: entry, language: primaryLanguageProvider())
+        let baseStyle = RewriteService.style(forPickerEntry: entry, language: primaryLanguageProvider())
         let style = multiVariantRewriteEnabledProvider()
             ? baseStyle.withVariantCount(3)
             : baseStyle
@@ -717,7 +517,7 @@ final class TranslationWorkflow {
 
         let variants: [String]
         do {
-            variants = try await performRewriteVariants(sourceText: sourceText, style: style, translator: translator)
+            variants = try await rewriteService.rewriteVariants(sourceText: sourceText, style: style, translator: translator)
         } catch {
             hudController.showError(error.localizedDescription)
             return
@@ -765,54 +565,8 @@ final class TranslationWorkflow {
         hudController.showResult("Sent \(style.displayName)", persona: style)
     }
 
-    /// Build a `TranslationStyle` from a picker-chosen entry. Four cases:
-    ///   • `.freetext(text)` — v0.8.3: the user typed an ad-hoc instruction
-    ///     in the picker filter; that text becomes the style instruction.
-    ///   • `.preset(.custom)` — the "Custom" preset row was tapped
-    ///     without free-text; fall back to a sensible default.
-    ///   • `.preset(other)` — built-in tone with its canned instruction.
-    ///   • `.binding(b)` — v0.8.4: a persisted RewriteBinding surfaced in
-    ///     the picker (because the user ticked "In picker"); use the
-    ///     binding's effective instruction + display label so the result
-    ///     is identical to invoking the binding via its hotkey.
-    /// `allowsExpressiveContent` only flips on for tones flagged
-    /// `.isExpressive` (e.g. `.casualRaw`); freetext stays strict —
-    /// users who want expressive rewriting must pick a preset explicitly.
-    private static func style(forPickerEntry entry: PickerEntry, language: String) -> TranslationStyle {
-        let instruction: String
-        let label: String
-        let expressive: Bool
-        switch entry {
-        case .freetext(let text):
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            instruction = trimmed.isEmpty
-                ? "Rewrite this naturally and clearly while preserving the writer's intent and voice."
-                : trimmed
-            label = "Rewrite (your prompt)"
-            expressive = false
-        case .preset(let tone):
-            if tone == .custom {
-                instruction = "Rewrite this naturally and clearly while preserving the writer's intent and voice."
-                label = "Rewrite (custom)"
-            } else {
-                instruction = tone.instruction
-                label = "\(tone.displayName) rewrite"
-            }
-            expressive = tone.isExpressive
-        case .binding(let binding):
-            instruction = binding.effectiveInstruction
-            label = binding.displayName
-            expressive = binding.tone.isExpressive
-        }
-        return TranslationStyle(
-            direction: .rewrite,
-            targetLanguage: language,
-            register: .neutral,
-            customStyleInstruction: instruction,
-            displayLabelOverride: label,
-            allowsExpressiveContent: expressive
-        )
-    }
+    // `style(forPickerEntry:language:)` extracted to RewriteService in
+    // v0.9.1. Call via `RewriteService.style(forPickerEntry:language:)`.
 
     private func restoreClipboard(_ snapshot: ClipboardSnapshot) {
         Task { @MainActor in
