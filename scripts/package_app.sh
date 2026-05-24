@@ -115,6 +115,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <string>Contextual Mac Translator uses keyboard automation to translate and send chat text.</string>
   <key>NSInputMonitoringUsageDescription</key>
   <string>Contextual Mac Translator listens for global hotkeys to trigger translation workflows.</string>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>Contextual Mac Translator uses screen capture when you trigger the OCR capture hotkey, so it can read text from any window and translate it.</string>
   <key>SUFeedURL</key>
   <string>${SU_FEED_URL}</string>
   <key>SUPublicEDKey</key>
