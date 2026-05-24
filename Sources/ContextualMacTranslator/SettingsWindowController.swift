@@ -35,6 +35,7 @@ struct SettingsView: View {
     @State private var outboundRecorderID: UUID?
     @State private var rewriteRecorderID: UUID?
     @State private var pickerRecorderShown = false
+    @State private var captureRecorderShown = false
     @State private var expressiveTonePromptShown = false
     @State private var cloudAuth: SupabaseAuthViewModel
 
@@ -52,6 +53,7 @@ struct SettingsView: View {
             translationSourceSection
             glossarySection
             rewriteSection
+            captureSection
             permissionsSection
             advancedSection
         }
@@ -100,6 +102,19 @@ struct SettingsView: View {
                     set: { settings.pickerHotkey = $0 }
                 ),
                 isPresented: $pickerRecorderShown,
+                ownerBindingID: nil
+            )
+        }
+        // v0.9.0 — OCR capture recorder sheet. Default suggestion is
+        // ⌘⌥G (mnemonic: "grab") when the user opens the recorder for
+        // the first time; saved on confirm.
+        .sheet(isPresented: $captureRecorderShown) {
+            HotkeyRecorderSheet(
+                hotkey: Binding<HotkeyConfig>(
+                    get: { settings.captureHotkey ?? HotkeyConfig(keyCode: kVK_ANSI_G, modifiers: cmdKey | optionKey) },
+                    set: { settings.captureHotkey = $0 }
+                ),
+                isPresented: $captureRecorderShown,
                 ownerBindingID: nil
             )
         }
@@ -580,6 +595,73 @@ struct SettingsView: View {
         settings.rewriteBindings.removeAll { $0.id == binding.id }
     }
 
+    // MARK: - OCR capture (v0.9.0)
+
+    /// "Capture" section — bind a hotkey to OCR-from-screen translate.
+    /// User presses hotkey → system crosshair → OCR → translate into
+    /// primary language → PreviewHUD in copy-mode.
+    private var captureSection: some View {
+        Section("Capture") {
+            Text("Bind a hotkey to OCR text from any region of your screen, then translate it into \(LanguageCatalog.englishName(for: settings.primaryLanguage)). Works with the system crosshair (drag to select, Esc to cancel) — same UX as ⌘⇧4.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("OCR capture hotkey")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    if let hotkey = settings.captureHotkey {
+                        Text(hotkey.displayLabel)
+                            .font(.system(.body, design: .monospaced))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                        Button("Change…") { captureRecorderShown = true }
+                        Button(role: .destructive) {
+                            settings.captureHotkey = nil
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Disable the OCR capture hotkey")
+                    } else {
+                        Text("Not set")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Set hotkey") { captureRecorderShown = true }
+                    }
+                }
+                Text("Recognises Vietnamese, English, Simplified Chinese, Japanese, Korean. Language auto-detected; result opens in a copy-mode preview (no auto-paste).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Onboarding card — first OCR invocation triggers the
+            // Screen Recording TCC prompt, so prime users to expect it
+            // and give them a direct link to fix it if they denied.
+            VStack(alignment: .leading, spacing: 6) {
+                Label(
+                    "First capture asks for Screen Recording permission. If you denied it, re-enable here:",
+                    systemImage: "shield.lefthalf.filled"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                Button("Open System Settings → Screen Recording") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .controlSize(.small)
+            }
+            .padding(8)
+            .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
     private var permissionsSection: some View {
         Section("Permissions") {
             PermissionRow(
@@ -670,172 +752,10 @@ private struct PermissionRow: View {
     }
 }
 
-/// Editable row for one outbound binding (target language + register +
-/// hotkey + optional custom style instruction). Hotkey is changed via a
-/// modal recorder sheet (`onChangeHotkey` triggers parent to present it).
-private struct OutboundBindingRow: View {
-    @Binding var binding: OutboundBinding
-    let onChangeHotkey: () -> Void
-    let onDelete: () -> Void
-    @State private var showCustomStyle = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Picker("Language", selection: $binding.languageCode) {
-                    ForEach(LanguageCatalog.supported) { lang in
-                        Text(lang.englishName).tag(lang.code)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(maxWidth: 200)
-
-                Picker("Register", selection: $binding.register) {
-                    ForEach(Register.allCases) { reg in
-                        Text(reg.displayName).tag(reg)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(maxWidth: 130)
-
-                Spacer()
-
-                Text(binding.hotkey.displayLabel)
-                    .font(.system(.body, design: .monospaced))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
-
-                Button("Change…") { onChangeHotkey() }
-                    .help("Re-record this hotkey")
-
-                Button(role: .destructive) { onDelete() } label: {
-                    Image(systemName: "minus.circle")
-                }
-                .buttonStyle(.borderless)
-                .help("Remove this outbound target")
-            }
-
-            HStack {
-                Toggle(isOn: $showCustomStyle) {
-                    Text("Custom style instruction")
-                        .font(.caption)
-                }
-                .toggleStyle(.checkbox)
-                Spacer()
-            }
-            if showCustomStyle || !binding.customStyleInstruction.isEmpty {
-                TextEditor(text: $binding.customStyleInstruction)
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(minHeight: 60, maxHeight: 110)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(.separator, lineWidth: 1)
-                    )
-                Text("Overrides the default LLM style for this target. Leave empty to use the auto-derived register-aware instruction.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(8)
-        .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-    }
-}
-
-/// Editable row for one rewrite binding (tone + optional custom instruction
-/// + hotkey). Custom tone always shows the instruction editor (it's the
-/// instruction); preset tones expose it as an optional override.
-private struct RewriteBindingRow: View {
-    @Binding var binding: RewriteBinding
-    /// Reflects `SettingsStore.expressiveTonesEnabled` — the parent
-    /// passes it through so this row's tone dropdown hides expressive
-    /// tones unless the user has opted in. If the row's current tone is
-    /// expressive but the toggle is OFF, that tone is still shown as the
-    /// current selection (so the user can see what's bound) but no other
-    /// expressive option appears.
-    let expressiveEnabled: Bool
-    let onChangeHotkey: () -> Void
-    let onDelete: () -> Void
-    @State private var showCustom = false
-
-    private var visibleTones: [RewriteTone] {
-        let base = RewriteTone.available(expressive: expressiveEnabled)
-        return base.contains(binding.tone) ? base : base + [binding.tone]
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Picker("Tone", selection: $binding.tone) {
-                    ForEach(visibleTones) { tone in
-                        Text(tone.displayName).tag(tone)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(maxWidth: 200)
-
-                Spacer()
-
-                Text(binding.hotkey.displayLabel)
-                    .font(.system(.body, design: .monospaced))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
-
-                Button("Change…") { onChangeHotkey() }
-                    .help("Re-record this hotkey")
-
-                Button(role: .destructive) { onDelete() } label: {
-                    Image(systemName: "minus.circle")
-                }
-                .buttonStyle(.borderless)
-                .help("Remove this rewrite binding")
-            }
-
-            HStack {
-                Toggle(isOn: $showCustom) {
-                    Text(binding.tone == .custom
-                         ? "Custom instruction (required)"
-                         : "Custom instruction (overrides preset)")
-                        .font(.caption)
-                }
-                .toggleStyle(.checkbox)
-                Spacer()
-                // v0.8.4 — opt this binding into the tone picker popup
-                // (default ON for back-compat). Lets users surface saved
-                // instructions in the picker without remembering hotkeys.
-                Toggle(isOn: $binding.showInPicker) {
-                    Text("In picker")
-                        .font(.caption)
-                }
-                .toggleStyle(.checkbox)
-                .help("Show this binding as a row in the tone picker popup")
-            }
-
-            if showCustom || !binding.customInstruction.isEmpty || binding.tone == .custom {
-                TextEditor(text: $binding.customInstruction)
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(minHeight: 50, maxHeight: 100)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(.separator, lineWidth: 1)
-                    )
-                Text(binding.tone == .custom
-                     ? "Describe the desired tone, e.g. \"warm reply to an angry client, under 2 sentences\"."
-                     : "Optional — overrides the preset's built-in instruction.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(8)
-        .background(.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
-    }
-}
+// `OutboundBindingRow` + `RewriteBindingRow` extracted to
+// `SettingsBindingRows.swift` in v0.9.0 (P6) so this file stays under
+// the 800-line guideline after the new Capture section landed. Pure
+// move — no behaviour change.
 
 // MARK: - UUID `Identifiable` for `.sheet(item:)` binding
 
