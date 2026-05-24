@@ -8,6 +8,28 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.9.1</title>
+      <pubDate>Mon, 25 May 2026 02:43:21 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Refactor + reliability patch</h2>
+        <p>No new features. Two structural-debt fixes the v0.9.0 deliver-phase review flagged + 13 high-leverage tests for previously-silent fallback paths.</p>
+        <ul>
+          <li><strong>Internal:</strong> TranslationWorkflow split from 876 → 630 LOC. New CaptureOrchestrator + RewriteService modules. Behaviour byte-identical.</li>
+          <li><strong>Fix:</strong> the menu-bar "Send Keigo / Send Casual" items no longer silently fall back to Japanese for a VN-primary user — now surfaces an actionable error pointing to Settings.</li>
+          <li><strong>Tests:</strong> +13 (BackendProvider.streamingURL path rewriter + WhatsNew per-version highlight gating).</li>
+        </ul>
+        <p>Upgrade is risk-free: all v0.9.0 user state, hotkeys, bindings, and the multi-variant / expressive-tones toggles round-trip clean.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.9.1">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.9.1/Contextual-Mac-Translator-v0.9.1-macos-arm64.zip"
+        sparkle:version="27"
+        sparkle:shortVersionString="0.9.1"
+        sparkle:edSignature="uzi6/SPdGfsSxw/rkV8FHWOCHVUfuIJZMIkKNM6Vo8Z8F0Z9gOMHlNf54KLwxpF7rTC/q9kHrvOc6PzaC9amCQ==" length="2054496"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.9.0</title>
       <pubDate>Mon, 25 May 2026 01:41:12 +0700</pubDate>
       <description><![CDATA[
