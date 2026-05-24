@@ -31,8 +31,15 @@ final class WhatsNewWindowController {
     }
 
     func show() {
-        window.makeKeyAndOrderFront(nil)
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        // Surface the window without stealing focus from whichever app
+        // the user is currently typing in. Sparkle can pop this mid-day
+        // after a silent OTA upgrade; yanking focus during a typed
+        // sentence would be hostile. The user can click into it when
+        // they're ready (the window joins all spaces + is .floating
+        // free, so it stays visible until dismissed).
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.level = .floating
+        window.orderFrontRegardless()
     }
 
     func close() {
@@ -100,10 +107,25 @@ private struct WhatsNewView: View {
     }
 }
 
-/// Static catalogue of the highlights shown in v0.9.0. Lives here
-/// (next to the controller) instead of in AppDelegate so the copy is
-/// easy to find when bumping for v0.9.x / v1.0.
+/// Catalogue of highlights per version. Add new entries as minor/major
+/// releases ship — the absence of an entry for a version (rather than
+/// a hard-coded version prefix) is what gates the What's-New popup.
+/// This way v0.10.0 / v1.0.0 silently no-op until someone wires their
+/// own highlight set instead of mis-replaying the v0.9.0 copy.
 extension WhatsNewWindowController {
+    /// Highlights for a specific app version (CFBundleShortVersionString
+    /// equality, not prefix). Returns `nil` when no highlights exist for
+    /// the running build — AppDelegate uses this to decide whether to
+    /// show the window at all.
+    static func highlights(for version: String) -> [Highlight]? {
+        switch version {
+        case "0.9.0":
+            return v0_9_0Highlights
+        default:
+            return nil
+        }
+    }
+
     static let v0_9_0Highlights: [Highlight] = [
         .init(
             symbol: "command",

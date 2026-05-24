@@ -91,17 +91,21 @@ final class SystemScreenCaptureService: ScreenCaptureService {
             return .failed("Couldn't launch screencapture: \(error.localizedDescription)")
         }
 
-        // Wait with a generous timeout — the user has to drag the
-        // crosshair, which can take a while if they're picking text
-        // from a paused video frame or a long page.
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning {
-            if Date() > deadline {
-                process.terminate()
-                return .failed("Capture timed out after \(Int(timeout))s.")
-            }
-            Thread.sleep(forTimeInterval: 0.05)
+        // Watchdog: schedule a terminate() at the deadline so we don't
+        // leak the subprocess if the user wanders off mid-drag. The
+        // user has to drag the crosshair, which can take a while if
+        // they're picking text from a paused video frame or a long
+        // page — hence the generous 60s default. Using
+        // `waitUntilExit()` (not a polling loop) releases this GCD
+        // thread entirely until the subprocess exits.
+        let watchdog = DispatchWorkItem {
+            if process.isRunning { process.terminate() }
         }
+        DispatchQueue.global(qos: .utility).asyncAfter(
+            deadline: .now() + timeout, execute: watchdog
+        )
+        process.waitUntilExit()
+        watchdog.cancel()
 
         // Exit 0 + bytes on stdout = success.
         // Exit 1 / no bytes = user cancelled (Esc).

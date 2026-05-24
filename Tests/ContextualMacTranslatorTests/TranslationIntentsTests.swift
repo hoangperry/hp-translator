@@ -96,7 +96,15 @@ struct RewriteToneAppEnumTests {
 
 // MARK: - TranslateSelectionIntent
 
-@Suite("TranslateSelectionIntent")
+// The three intent suites below share `TranslationIntentRouter.shared` —
+// every test installs its own stub and reset()s via defer. Swift Testing
+// runs suites concurrently by default, which would let a sibling suite's
+// install() race with the current suite's intent.perform(). `.serialized`
+// pins these three suites onto a single test runner so installs/resets
+// can't interleave. (The pure tone-mirror + error-mapping suites have no
+// router dependency and stay parallel.)
+
+@Suite("TranslateSelectionIntent", .serialized)
 @MainActor
 struct TranslateSelectionIntentTests {
     @Test("Empty targetLanguage falls back to primaryLanguage")
@@ -152,7 +160,7 @@ struct TranslateSelectionIntentTests {
 
 // MARK: - RewriteWithToneIntent
 
-@Suite("RewriteWithToneIntent")
+@Suite("RewriteWithToneIntent", .serialized)
 @MainActor
 struct RewriteWithToneIntentTests {
     @Test("Preset tone routes to rewriteHeadless(text:tone:) with the right enum")
@@ -193,7 +201,7 @@ struct RewriteWithToneIntentTests {
 
 // MARK: - RewriteWithPromptIntent
 
-@Suite("RewriteWithPromptIntent")
+@Suite("RewriteWithPromptIntent", .serialized)
 @MainActor
 struct RewriteWithPromptIntentTests {
     @Test("Trimmed non-empty instruction is forwarded")

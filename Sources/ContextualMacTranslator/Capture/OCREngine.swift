@@ -54,41 +54,62 @@ final class VisionOCREngine: OCREngine {
     }
 
     func recognizeText(in image: CGImage) async -> OCRResult {
-        await withCheckedContinuation { continuation in
-            let request = VNRecognizeTextRequest { request, error in
-                if let error {
-                    continuation.resume(returning: .failed(error.localizedDescription))
-                    return
-                }
-                guard let observations = request.results as? [VNRecognizedTextObservation],
-                      !observations.isEmpty else {
-                    continuation.resume(returning: .nothingDetected)
-                    return
-                }
-                let lines = observations.compactMap {
-                    $0.topCandidates(1).first?.string
-                }
-                let joined = OCRPostprocessor.clean(lines: lines)
-                if joined.isEmpty {
-                    continuation.resume(returning: .nothingDetected)
-                } else {
-                    continuation.resume(returning: .recognized(joined))
-                }
-            }
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = self.usesLanguageCorrection
-            request.recognitionLanguages = self.languages
-            // Automatic language ID off — we provide the candidate set
-            // ourselves to keep results deterministic per locale.
-            request.automaticallyDetectsLanguage = false
+        // `VNImageRequestHandler.perform` is synchronous CPU work
+        // (0.5–2s on large captures). Detach onto a background
+        // executor so the calling actor — typically `@MainActor` via
+        // `TranslationWorkflow.captureAndTranslate` — isn't blocked
+        // while Vision runs inference. The image is `Sendable` (CGImage
+        // is value-typed) so it crosses the boundary safely.
+        let languages = self.languages
+        let usesLanguageCorrection = self.usesLanguageCorrection
+        return await Task.detached(priority: .userInitiated) {
+            Self.performRecognition(
+                image: image,
+                languages: languages,
+                usesLanguageCorrection: usesLanguageCorrection
+            )
+        }.value
+    }
 
-            let handler = VNImageRequestHandler(cgImage: image, options: [:])
-            do {
-                try handler.perform([request])
-            } catch {
-                continuation.resume(returning: .failed(error.localizedDescription))
+    /// Pure synchronous Vision invocation. `nonisolated static` so it
+    /// runs on whatever queue `Task.detached` lands it on, with zero
+    /// captured actor state.
+    private nonisolated static func performRecognition(
+        image: CGImage,
+        languages: [String],
+        usesLanguageCorrection: Bool
+    ) -> OCRResult {
+        var result: OCRResult = .nothingDetected
+        let request = VNRecognizeTextRequest { request, error in
+            if let error {
+                result = .failed(error.localizedDescription)
+                return
             }
+            guard let observations = request.results as? [VNRecognizedTextObservation],
+                  !observations.isEmpty else {
+                result = .nothingDetected
+                return
+            }
+            let lines = observations.compactMap {
+                $0.topCandidates(1).first?.string
+            }
+            let joined = OCRPostprocessor.clean(lines: lines)
+            result = joined.isEmpty ? .nothingDetected : .recognized(joined)
         }
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = usesLanguageCorrection
+        request.recognitionLanguages = languages
+        // Automatic language ID off — we provide the candidate set
+        // ourselves to keep results deterministic per locale.
+        request.automaticallyDetectsLanguage = false
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        do {
+            try handler.perform([request])
+        } catch {
+            return .failed(error.localizedDescription)
+        }
+        return result
     }
 }
 

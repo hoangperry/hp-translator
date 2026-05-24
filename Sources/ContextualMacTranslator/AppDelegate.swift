@@ -63,22 +63,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Compare the bundled CFBundleShortVersionString against the last
     /// version we showed the What's-New window for. If they differ
-    /// (typical case: user just upgraded), pop the window once and
-    /// record the version so it stays dismissed next launch.
+    /// (typical case: user just upgraded), look up highlights for the
+    /// running version; if a catalogue exists, pop the window once.
+    /// Either way, record the version as seen so it stays dismissed
+    /// next launch — versions without highlights silently mark
+    /// themselves as seen so a future build adding entries doesn't
+    /// retroactively replay stale releases.
     private func maybeShowWhatsNew() {
         let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let lastShown = SettingsStore.shared.lastShownWhatsNewVersion
         guard !current.isEmpty, current != lastShown else { return }
-        // Only show for v0.9.x for now — earlier copy lives behind a
-        // version gate so a v0.10.0 upgrade can swap to a new highlight
-        // set without re-showing the v0.9.0 one.
-        guard current.hasPrefix("0.9.") else {
+        guard let highlights = WhatsNewWindowController.highlights(for: current) else {
+            // No catalogue for this version (e.g. a patch with nothing
+            // user-facing). Mark seen so we don't repeatedly re-check
+            // on every launch.
             SettingsStore.shared.lastShownWhatsNewVersion = current
             return
         }
         let controller = WhatsNewWindowController(
             version: current,
-            highlights: WhatsNewWindowController.v0_9_0Highlights,
+            highlights: highlights,
             onContinue: { [weak self] in
                 SettingsStore.shared.lastShownWhatsNewVersion = current
                 self?.whatsNewWindowController?.close()

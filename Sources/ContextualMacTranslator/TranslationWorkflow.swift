@@ -574,9 +574,14 @@ final class TranslationWorkflow {
         case .recognized(let text):
             sourceText = text
         case .nothingDetected:
+            // Dismiss the loading HUD before swapping to error so the
+            // user doesn't see both stacked (mirrors the translation-
+            // failure path below).
+            hudController.dismiss()
             hudController.showError("No text detected in that region.")
             return
         case .failed(let reason):
+            hudController.dismiss()
             hudController.showError("OCR failed: \(reason)")
             return
         }
