@@ -8,6 +8,28 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.10.0</title>
+      <pubDate>Mon, 25 May 2026 23:27:07 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Cultural Precision &amp; Privacy</h2>
+        <p>Three new sub-features anchored on "Apple Intelligence can't do per-locale precision":</p>
+        <ul>
+          <li><strong>VN Register Card</strong> — pin dialect (Bắc/Nam), kinship (anh/chị/em/cháu/bạn), formality. Every rewrite + outbound translate matches.</li>
+          <li><strong>Privacy badge</strong> — PreviewHUD shows 🛡 Local / ☁ Cloud / 🏢 Hosted per translation. Settings → Privacy has an Ollama install helper + test-connection.</li>
+          <li><strong>Glossary v2</strong> — three typed entry kinds (Don't translate / Alias / Always translate) replace the free-text blob. Legacy rules still flow underneath.</li>
+        </ul>
+        <p>Storage byte-identical to v0.9.x — every setting + binding + hotkey round-trips clean.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.10.0">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.10.0/Contextual-Mac-Translator-v0.10.0-macos-arm64.zip"
+        sparkle:version="29"
+        sparkle:shortVersionString="0.10.0"
+        sparkle:edSignature="9oOiXIXVkTC30i0UPLqePYc8UM57mW/POsSUvK+P0pZI/veFXZKb04UpqDxpFx9sd8cAiUuuIIS0hTdqKhOeAg==" length="2180565"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.9.2</title>
       <pubDate>Mon, 25 May 2026 04:42:29 +0700</pubDate>
       <description><![CDATA[
