@@ -443,19 +443,15 @@ struct SettingsView: View {
 
     // MARK: - Glossary / permissions / advanced
 
+    /// v0.10.0 — section body extracted to `SettingsGlossarySection.swift`
+    /// so this file stays under the 800-line guideline. Now wraps the
+    /// typed `glossaryEntries` editor + the preserved legacy free-text
+    /// blob into one Section.
     private var glossarySection: some View {
-        Section("Glossary") {
-            Text("Lines like `term = preferred translation` — applied across all LLM-based providers.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            TextEditor(text: $settings.glossary)
-                .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 120)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(.separator, lineWidth: 1)
-                )
-        }
+        SettingsGlossarySection(
+            entries: $settings.glossaryEntries,
+            legacyText: $settings.glossary
+        )
     }
 
     // MARK: - Contextual rewrite (v0.7)
