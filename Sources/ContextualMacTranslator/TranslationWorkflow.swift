@@ -61,7 +61,17 @@ final class TranslationWorkflow {
         focusGuard: FocusGuard = FocusGuard(),
         previewPresenter: PreviewPresenter = PreviewHUDController(),
         pickerPresenter: TonePickerPresenter? = TonePickerController(),
-        glossaryProvider: @escaping @MainActor () -> String = { SettingsStore.shared.glossary },
+        glossaryProvider: @escaping @MainActor () -> String = {
+            // v0.10.0 — default composes typed entries + legacy blob
+            // into one string. Tests can still inject their own closure
+            // to bypass; production sites pick this up automatically so
+            // every translate / rewrite / OCR path honours the
+            // structured rules.
+            GlossaryComposer.compose(
+                entries: SettingsStore.shared.glossaryEntries,
+                legacyBlob: SettingsStore.shared.glossary
+            )
+        },
         focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled },
         primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage },
         rewriteAvailableProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.rewriteAvailable },
@@ -108,7 +118,17 @@ final class TranslationWorkflow {
         focusGuard: FocusGuard = FocusGuard(),
         previewPresenter: PreviewPresenter = PreviewHUDController(),
         pickerPresenter: TonePickerPresenter? = TonePickerController(),
-        glossaryProvider: @escaping @MainActor () -> String = { SettingsStore.shared.glossary },
+        glossaryProvider: @escaping @MainActor () -> String = {
+            // v0.10.0 — default composes typed entries + legacy blob
+            // into one string. Tests can still inject their own closure
+            // to bypass; production sites pick this up automatically so
+            // every translate / rewrite / OCR path honours the
+            // structured rules.
+            GlossaryComposer.compose(
+                entries: SettingsStore.shared.glossaryEntries,
+                legacyBlob: SettingsStore.shared.glossary
+            )
+        },
         focusGuardEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.focusGuardEnabled },
         primaryLanguageProvider: @escaping @MainActor () -> String = { SettingsStore.shared.primaryLanguage },
         rewriteAvailableProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.rewriteAvailable },
