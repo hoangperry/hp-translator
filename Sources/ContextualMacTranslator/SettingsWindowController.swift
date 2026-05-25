@@ -538,6 +538,12 @@ struct SettingsView: View {
                 Text("This adds the \"Chửi thề\" tone — a casual-with-edge rewrite for close-friends Vietnamese chat, using profanity markers like vl/vcl/đm as natural intensifiers. The rewrite always shows in a preview before sending. Make sure your active provider supports this (Gemini works out of the box; some providers may refuse). You can turn this off any time.")
             }
 
+            // v0.10.0 — VN social register card. Inactive by default
+            // (registerCard == nil) → v0.9.x prompt behaviour byte-
+            // identical. Section view lives in SettingsRegisterCardSection.swift
+            // to keep this file under the 800-line guideline.
+            SettingsRegisterCardSection(registerCard: $settings.registerCard)
+
             // v0.8.5 — multi-variant rewrite. Off by default to keep
             // existing users on the cheaper single-draft path.
             Toggle(isOn: $settings.multiVariantRewriteEnabled) {
