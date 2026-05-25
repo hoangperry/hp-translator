@@ -148,6 +148,21 @@ final class SettingsStore {
         }
     }
 
+    /// v0.10.0 — typed glossary entries (Theme B Lite). Stored in
+    /// Keychain under a NEW account name; the legacy `glossary: String`
+    /// blob above is UNTOUCHED so v0.9.x users who never open the new
+    /// editor keep their data byte-identical. Both feed into
+    /// PromptBuilder in P6 (structured rules first, then legacy blob).
+    var glossaryEntries: [GlossaryEntry] {
+        didSet {
+            guard glossaryEntries != oldValue else { return }
+            if let data = try? JSONEncoder().encode(glossaryEntries),
+               let json = String(data: data, encoding: .utf8) {
+                writeKeychain(json, account: Accounts.glossaryEntries)
+            }
+        }
+    }
+
     var focusGuardEnabled: Bool {
         didSet {
             guard focusGuardEnabled != oldValue else { return }
@@ -378,6 +393,9 @@ final class SettingsStore {
         static let libreTranslateAPIKey = "libretranslate-api-key"
         // Shared
         static let glossary = "default-glossary"
+        // v0.10.0 — typed glossary entries (fresh Keychain slot;
+        // legacy `default-glossary` blob above stays untouched)
+        static let glossaryEntries = "glossary-entries-v2"
         // (v0.9.2 — deviceID Keychain account lives on `SaaSConfig.Accounts`)
     }
 
@@ -460,6 +478,17 @@ final class SettingsStore {
 
         // Shared
         glossary = (try? keychain.read(account: Accounts.glossary)) ?? ""
+        // v0.10.0 — typed glossary entries. Fail-closed: a future
+        // build that adds a new GlossaryEntry.KindTag would throw on
+        // decode in this older build → []. Strict beats silent data
+        // loss (legacy `glossary` string blob above still flows).
+        if let json = (try? keychain.read(account: Accounts.glossaryEntries)) ?? nil,
+           let data = json.data(using: .utf8),
+           let entries = try? JSONDecoder().decode([GlossaryEntry].self, from: data) {
+            glossaryEntries = entries
+        } else {
+            glossaryEntries = []
+        }
         focusGuardEnabled = defaults.object(forKey: Keys.focusGuardEnabled) as? Bool ?? true
         firstRunCompleted = defaults.bool(forKey: Keys.firstRunCompleted)
 
