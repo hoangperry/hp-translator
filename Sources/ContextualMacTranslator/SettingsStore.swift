@@ -263,6 +263,24 @@ final class SettingsStore {
         }
     }
 
+    /// v0.10.0 — Vietnamese social-register card. `nil` = disabled
+    /// (default; v0.9.x behaviour byte-identical for existing users).
+    /// When set, every rewrite + outbound translate composes the card
+    /// into the prompt via `RegisterCard.prompted(prefix:)`. Persisted
+    /// as JSON in UserDefaults so the structured Codable shape survives
+    /// adding new axes in v0.10.x without migration churn.
+    var registerCard: RegisterCard? {
+        didSet {
+            guard registerCard != oldValue else { return }
+            if let registerCard,
+               let data = try? JSONEncoder().encode(registerCard) {
+                defaults.set(data, forKey: Keys.registerCard)
+            } else {
+                defaults.removeObject(forKey: Keys.registerCard)
+            }
+        }
+    }
+
     // MARK: Direct providers — DeepL (v0.3)
 
     var deeplAPIKey: String {
@@ -340,6 +358,8 @@ final class SettingsStore {
         // v0.8.2 expressive tones (Chửi thề)
         static let expressiveTonesEnabled = "translator.expressiveTonesEnabled"
         static let multiVariantRewriteEnabled = "translator.multiVariantRewriteEnabled"
+        // v0.10.0 — VN social register card
+        static let registerCard = "translator.registerCard"
         // v0.3 new providers
         static let deeplUseFree = "translator.deepl.useFree"
         static let libreTranslateBaseURL = "translator.libretranslate.baseURL"
@@ -461,6 +481,14 @@ final class SettingsStore {
         // v0.8.5 — off by default so existing users keep the cheaper
         // single-draft path. Opt in via Settings → Contextual rewrite.
         multiVariantRewriteEnabled = defaults.object(forKey: Keys.multiVariantRewriteEnabled) as? Bool ?? false
+        // v0.10.0 — RegisterCard load. nil-on-decode-error preserves
+        // v0.9.x behaviour for users who never saved one + protects
+        // against forward-shaped JSON from future v0.10.x builds.
+        if let data = defaults.data(forKey: Keys.registerCard) {
+            registerCard = try? JSONDecoder().decode(RegisterCard.self, from: data)
+        } else {
+            registerCard = nil
+        }
 
         // v0.3 new providers
         deeplAPIKey = (try? keychain.read(account: Accounts.deeplAPIKey)) ?? ""
