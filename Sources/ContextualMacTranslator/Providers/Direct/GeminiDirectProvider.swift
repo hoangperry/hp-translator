@@ -7,6 +7,7 @@ import Foundation
 final class GeminiDirectProvider: TranslationProvider {
     static var providerKey: String { "gemini" }
     static var displayName: String { "Gemini (Google AI Studio)" }
+    static var privacyClass: ProviderPrivacyClass { .cloud }
 
     struct Config: Sendable {
         var apiKey: String

@@ -45,10 +45,16 @@ struct CaptureOrchestrator {
         }
 
         let target = primaryLanguageProvider()
+        // v0.10.0 — eagerly stamp privacy class + display name so the
+        // HUD's badge renders from style state (R4 mitigation — no
+        // providerFactory() call on the SwiftUI render path).
         let initialStyle = TranslationStyle(
             direction: .inbound,
             targetLanguage: target,
             register: .neutral
+        ).withProvider(
+            privacyClass: type(of: translator).privacyClass,
+            displayName: type(of: translator).displayName
         )
         hudController.showLoading("Reading text from screen...", persona: initialStyle)
 

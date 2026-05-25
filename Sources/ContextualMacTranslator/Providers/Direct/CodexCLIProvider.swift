@@ -8,6 +8,9 @@ import Foundation
 final class CodexCLIProvider: TranslationProvider {
     static var providerKey: String { "codex-cli" }
     static var displayName: String { "Codex CLI" }
+    // Codex CLI talks to OpenAI's cloud unless the user has manually
+    // pointed it at a local model — pessimistic default is .cloud.
+    static var privacyClass: ProviderPrivacyClass { .cloud }
 
     struct Config: Sendable {
         var command: String

@@ -13,6 +13,12 @@ import Foundation
 final class LibreTranslateDirectProvider: TranslationProvider {
     static var providerKey: String { "libretranslate" }
     static var displayName: String { "LibreTranslate" }
+    // LibreTranslate is usually a public cloud instance even if it's
+    // open-source. Power users running their own instance on
+    // 127.0.0.1 are still .cloud from the app's perspective — the
+    // request leaves the LibreTranslate process boundary, just to a
+    // local one. Mark .cloud to avoid over-promising privacy.
+    static var privacyClass: ProviderPrivacyClass { .cloud }
 
     struct Config: Sendable {
         var baseURL: String

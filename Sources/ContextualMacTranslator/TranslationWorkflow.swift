@@ -167,10 +167,13 @@ final class TranslationWorkflow {
             return
         }
 
-        let inboundStyle = TranslationStyle(
-            direction: .inbound,
-            targetLanguage: primaryLanguageProvider(),
-            register: .neutral
+        let inboundStyle = stamp(
+            TranslationStyle(
+                direction: .inbound,
+                targetLanguage: primaryLanguageProvider(),
+                register: .neutral
+            ),
+            with: translator
         )
 
         hudController.showLoading("Translating selection...", persona: inboundStyle)
@@ -203,12 +206,16 @@ final class TranslationWorkflow {
         }
     }
 
-    func translateAndSend(persona: Persona) async {
+    func translateAndSend(persona originalPersona: Persona) async {
         let translator = providerFactory()
         guard translator.isConfigured else {
             hudController.showError(TranslationError.missingEndpoint.localizedDescription)
             return
         }
+        // v0.10.0 — eagerly stamp the persona with the active provider's
+        // privacy class + display name so the HUD's badge renders without
+        // reaching into providerFactory() per SwiftUI pass.
+        let persona = stamp(originalPersona, with: translator)
 
         focusGuard.capture()
 
@@ -342,8 +349,11 @@ final class TranslationWorkflow {
         // change). Either order works for the prompt body but applying
         // register before variant keeps the resulting customStyleInstruction
         // identical between single- and multi-variant paths.
-        let baseStyle = binding.style(language: primaryLanguageProvider())
-            .withRegisterCard(registerCardProvider())
+        let baseStyle = stamp(
+            binding.style(language: primaryLanguageProvider())
+                .withRegisterCard(registerCardProvider()),
+            with: translator
+        )
         let style = multiVariantRewriteEnabledProvider()
             ? baseStyle.withVariantCount(3)
             : baseStyle
@@ -546,8 +556,11 @@ final class TranslationWorkflow {
             return
         }
 
-        let baseStyle = RewriteService.style(forPickerEntry: entry, language: primaryLanguageProvider())
-            .withRegisterCard(registerCardProvider())
+        let baseStyle = stamp(
+            RewriteService.style(forPickerEntry: entry, language: primaryLanguageProvider())
+                .withRegisterCard(registerCardProvider()),
+            with: translator
+        )
         let style = multiVariantRewriteEnabledProvider()
             ? baseStyle.withVariantCount(3)
             : baseStyle
@@ -609,6 +622,20 @@ final class TranslationWorkflow {
 
     // `style(forPickerEntry:language:)` extracted to RewriteService in
     // v0.9.1. Call via `RewriteService.style(forPickerEntry:language:)`.
+
+    /// v0.10.0 — stamp a `TranslationStyle` with the active provider's
+    /// privacy class + display name so the HUD's Privacy badge can be
+    /// rendered without reaching back into `providerFactory()` during
+    /// SwiftUI render passes (R4 mitigation from define.md §6).
+    private func stamp(
+        _ style: TranslationStyle,
+        with translator: any TranslationProvider
+    ) -> TranslationStyle {
+        style.withProvider(
+            privacyClass: type(of: translator).privacyClass,
+            displayName: type(of: translator).displayName
+        )
+    }
 
     private func restoreClipboard(_ snapshot: ClipboardSnapshot) {
         Task { @MainActor in

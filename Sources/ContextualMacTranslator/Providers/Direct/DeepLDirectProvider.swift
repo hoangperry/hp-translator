@@ -11,6 +11,7 @@ import Foundation
 final class DeepLDirectProvider: TranslationProvider {
     static var providerKey: String { "deepl" }
     static var displayName: String { "DeepL" }
+    static var privacyClass: ProviderPrivacyClass { .cloud }
 
     struct Config: Sendable {
         var apiKey: String

@@ -11,6 +11,11 @@ import Foundation
 final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
     static var providerKey: String { "backend" }
     static var displayName: String { "Translator backend" }
+    // BackendProvider is the proxy to a self-hosted translator-server
+    // or the Supabase Edge Function — user trust depends on who runs
+    // the host. Marked .hosted to distinguish from .cloud (3rd-party
+    // API) and .local (on-device).
+    static var privacyClass: ProviderPrivacyClass { .hosted }
 
     private let settings: SettingsStore
     private let session: URLSession

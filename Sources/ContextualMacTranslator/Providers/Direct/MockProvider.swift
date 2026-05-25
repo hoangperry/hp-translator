@@ -8,6 +8,9 @@ import Foundation
 final class MockDirectProvider: TranslationProvider {
     static var providerKey: String { "mock" }
     static var displayName: String { "Mock (echo)" }
+    // Pure in-memory echo for tests + previews — nothing leaves the
+    // process, classify as .local for HUD consistency.
+    static var privacyClass: ProviderPrivacyClass { .local }
 
     var isConfigured: Bool { true }
 

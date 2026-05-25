@@ -51,6 +51,11 @@ struct SettingsView: View {
         Form {
             languagesSection
             translationSourceSection
+            // v0.10.0 — Privacy section sits BETWEEN translation source
+            // and glossary so users see the privacy class of whatever
+            // they just picked (cloud / local / hosted) before reaching
+            // glossary + rewrite config.
+            SettingsPrivacySection(settings: settings)
             glossarySection
             rewriteSection
             captureSection

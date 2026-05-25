@@ -414,6 +414,25 @@ struct PreviewHUDView: View {
                     .background(.tint.opacity(0.18), in: Capsule())
                 Text(model.persona.displayName)
                     .font(.headline)
+                // v0.10.0 — Privacy class badge (Local / Cloud / Hosted)
+                // resolved eagerly into the persona at workflow construction
+                // (R4 mitigation). Tooltip shows the full provider name.
+                if let cls = model.persona.privacyClass {
+                    Text("\(cls.badgeSymbol) \(cls.badgeLabel)")
+                        .font(.caption.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            privacyTint(for: cls),
+                            in: Capsule()
+                        )
+                        .help(
+                            model.persona.providerDisplayName.isEmpty
+                                ? "Provider privacy class"
+                                : "Provider: \(model.persona.providerDisplayName)"
+                        )
+                        .accessibilityLabel("Provider privacy: \(cls.badgeLabel)")
+                }
                 Spacer()
                 // v0.8.5 — variant pager. Only rendered when the LLM
                 // produced more than one draft.
@@ -526,6 +545,19 @@ struct PreviewHUDView: View {
                     editorFocused = true
                 }
             }
+        }
+    }
+
+    /// v0.10.0 — colour-tint each privacy class so the badge is
+    /// recognisable at a glance even on small HUD sizes. `.local` =
+    /// green (safest), `.cloud` = blue (neutral — most providers),
+    /// `.hosted` = orange (user-trust gradient depends on who runs
+    /// the host).
+    private func privacyTint(for cls: ProviderPrivacyClass) -> AnyShapeStyle {
+        switch cls {
+        case .local:  return AnyShapeStyle(.green.opacity(0.20))
+        case .cloud:  return AnyShapeStyle(.blue.opacity(0.18))
+        case .hosted: return AnyShapeStyle(.orange.opacity(0.20))
         }
     }
 }

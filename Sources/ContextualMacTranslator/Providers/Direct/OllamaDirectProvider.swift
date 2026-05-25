@@ -10,6 +10,7 @@ import Foundation
 final class OllamaDirectProvider: TranslationProvider {
     static var providerKey: String { "ollama" }
     static var displayName: String { "Ollama (local)" }
+    static var privacyClass: ProviderPrivacyClass { .local }
 
     struct Config: Sendable {
         var baseURL: String

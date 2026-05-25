@@ -85,6 +85,16 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
     /// `TranslationStyle.withRegisterCard(_:)`; inbound + OCR paths
     /// deliberately ignore it (read flow, not author flow).
     let registerCard: RegisterCard?
+    /// v0.10.0 — privacy class of the provider that will run this job,
+    /// resolved eagerly at workflow-construction time (R4 mitigation —
+    /// keeps the HUD off the `providerFactory()` call path during
+    /// SwiftUI render). `nil` = unknown / not yet resolved → HUD hides
+    /// the badge rather than guessing.
+    let privacyClass: ProviderPrivacyClass?
+    /// v0.10.0 — full provider display name for the HUD `.help()`
+    /// tooltip (Q3 from define.md §8 — TYPE in badge, NAME on hover).
+    /// Empty string when not resolved.
+    let providerDisplayName: String
 
     init(
         direction: TranslationDirection,
@@ -94,7 +104,9 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
         displayLabelOverride: String? = nil,
         allowsExpressiveContent: Bool = false,
         variantCount: Int = 1,
-        registerCard: RegisterCard? = nil
+        registerCard: RegisterCard? = nil,
+        privacyClass: ProviderPrivacyClass? = nil,
+        providerDisplayName: String = ""
     ) {
         self.direction = direction
         self.targetLanguage = targetLanguage
@@ -106,6 +118,8 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
         // most 5 to keep the response within typical context budgets.
         self.variantCount = max(1, min(variantCount, 5))
         self.registerCard = registerCard
+        self.privacyClass = privacyClass
+        self.providerDisplayName = providerDisplayName
     }
 
     var languageDisplayName: String {
@@ -125,7 +139,9 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
             displayLabelOverride: displayLabelOverride,
             allowsExpressiveContent: allowsExpressiveContent,
             variantCount: count,
-            registerCard: registerCard
+            registerCard: registerCard,
+            privacyClass: privacyClass,
+            providerDisplayName: providerDisplayName
         )
     }
 
@@ -145,7 +161,31 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
             displayLabelOverride: displayLabelOverride,
             allowsExpressiveContent: allowsExpressiveContent,
             variantCount: variantCount,
-            registerCard: card
+            registerCard: card,
+            privacyClass: privacyClass,
+            providerDisplayName: providerDisplayName
+        )
+    }
+
+    /// v0.10.0 — return a copy of this style stamped with the active
+    /// provider's privacy class + display name. Resolved EAGERLY by
+    /// the workflow at HUD-present time so SwiftUI render never
+    /// reaches back into `providerFactory()` (R4 mitigation).
+    func withProvider(
+        privacyClass: ProviderPrivacyClass?,
+        displayName: String
+    ) -> TranslationStyle {
+        TranslationStyle(
+            direction: direction,
+            targetLanguage: targetLanguage,
+            register: register,
+            customStyleInstruction: customStyleInstruction,
+            displayLabelOverride: displayLabelOverride,
+            allowsExpressiveContent: allowsExpressiveContent,
+            variantCount: variantCount,
+            registerCard: registerCard,
+            privacyClass: privacyClass,
+            providerDisplayName: displayName
         )
     }
 

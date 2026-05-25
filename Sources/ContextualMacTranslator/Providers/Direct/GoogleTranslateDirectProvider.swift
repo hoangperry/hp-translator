@@ -10,6 +10,7 @@ import Foundation
 final class GoogleTranslateDirectProvider: TranslationProvider {
     static var providerKey: String { "google-translate" }
     static var displayName: String { "Google Translate Basic" }
+    static var privacyClass: ProviderPrivacyClass { .cloud }
 
     struct Config: Sendable {
         var apiKey: String

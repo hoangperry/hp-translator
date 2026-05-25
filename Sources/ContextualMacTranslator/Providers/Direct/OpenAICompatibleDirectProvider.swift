@@ -10,6 +10,11 @@ import Foundation
 final class OpenAICompatibleDirectProvider: TranslationProvider {
     static var providerKey: String { "openai-compatible" }
     static var displayName: String { "OpenAI-compatible API" }
+    // Generic OpenAI-compatible endpoints are usually a cloud LLM
+    // (OpenAI, OpenRouter, Together, ...). Even when the user points
+    // it at a local OpenAI-shim, the data leaves the app's process —
+    // .cloud is the honest posture.
+    static var privacyClass: ProviderPrivacyClass { .cloud }
 
     struct Config: Sendable {
         var baseURL: String

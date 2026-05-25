@@ -9,6 +9,8 @@ import Foundation
 final class GeminiCLIProvider: TranslationProvider {
     static var providerKey: String { "gemini-cli" }
     static var displayName: String { "Gemini CLI" }
+    // Gemini CLI talks to Google's cloud Gemini API.
+    static var privacyClass: ProviderPrivacyClass { .cloud }
 
     struct Config: Sendable {
         var command: String
