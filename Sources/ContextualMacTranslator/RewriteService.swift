@@ -23,6 +23,11 @@ struct RewriteService {
     let providerFactory: @MainActor () -> any TranslationProvider
     let primaryLanguageProvider: @MainActor () -> String
     let glossaryProvider: @MainActor () -> String
+    /// v0.10.0 — VN social register card source. Defaults to nil-
+    /// providing closure so existing test call sites stay green; the
+    /// production wire-up in TranslationWorkflow injects
+    /// `{ SettingsStore.shared.registerCard }`.
+    var registerCardProvider: @MainActor () -> RegisterCard? = { nil }
 
     // MARK: - Core (called by translateAndSend / rewriteAndSend / rewriteWithPickerAndSend)
 
@@ -115,11 +120,13 @@ struct RewriteService {
         guard translator.isConfigured else {
             throw TranslationError.missingEndpoint
         }
+        // v0.10.0 — outbound headless translate composes the active
+        // RegisterCard into styleInstruction (no-op when nil/inactive).
         let style = TranslationStyle(
             direction: .outbound,
             targetLanguage: targetLanguage,
             register: .neutral
-        )
+        ).withRegisterCard(registerCardProvider())
         let job = TranslationJob(
             text: text,
             style: style,
@@ -150,7 +157,7 @@ struct RewriteService {
             customStyleInstruction: instruction,
             displayLabelOverride: label,
             allowsExpressiveContent: tone.isExpressive
-        )
+        ).withRegisterCard(registerCardProvider())
         return try await rewrite(sourceText: text, style: style, translator: translator)
     }
 
@@ -173,7 +180,7 @@ struct RewriteService {
             register: .neutral,
             customStyleInstruction: trimmed,
             displayLabelOverride: "Rewrite (your prompt)"
-        )
+        ).withRegisterCard(registerCardProvider())
         return try await rewrite(sourceText: text, style: style, translator: translator)
     }
 

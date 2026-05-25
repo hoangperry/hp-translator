@@ -44,6 +44,12 @@ final class TranslationWorkflow {
     /// below from the same providerFactory/glossaryProvider/
     /// primaryLanguageProvider seams.
     private let rewriteService: RewriteService
+    /// v0.10.0 — current VN social register card. `nil` (the default
+    /// reading from `SettingsStore`) → no register block prepended to
+    /// the per-binding tone instruction; v0.9.x prompt is byte-identical.
+    /// Resolved at every workflow call so a Settings change applies on
+    /// the next hotkey press without recreating the workflow.
+    private let registerCardProvider: @MainActor () -> RegisterCard?
 
     /// Production initialiser — wires `providerFactory` to a closure that
     /// resolves the active provider every call.
@@ -63,7 +69,8 @@ final class TranslationWorkflow {
         multiVariantRewriteEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.multiVariantRewriteEnabled },
         captureService: ScreenCaptureService = SystemScreenCaptureService(),
         ocrEngine: OCREngine = VisionOCREngine(),
-        languageDetector: LanguageDetector = NaturalLanguageDetector()
+        languageDetector: LanguageDetector = NaturalLanguageDetector(),
+        registerCardProvider: @escaping @MainActor () -> RegisterCard? = { SettingsStore.shared.registerCard }
     ) {
         self.providerFactory = providerFactory
         self.hudController = hudController
@@ -81,10 +88,12 @@ final class TranslationWorkflow {
         self.captureService = captureService
         self.ocrEngine = ocrEngine
         self.languageDetector = languageDetector
+        self.registerCardProvider = registerCardProvider
         self.rewriteService = RewriteService(
             providerFactory: providerFactory,
             primaryLanguageProvider: primaryLanguageProvider,
-            glossaryProvider: glossaryProvider
+            glossaryProvider: glossaryProvider,
+            registerCardProvider: registerCardProvider
         )
     }
 
@@ -107,7 +116,8 @@ final class TranslationWorkflow {
         multiVariantRewriteEnabledProvider: @escaping @MainActor () -> Bool = { SettingsStore.shared.multiVariantRewriteEnabled },
         captureService: ScreenCaptureService = SystemScreenCaptureService(),
         ocrEngine: OCREngine = VisionOCREngine(),
-        languageDetector: LanguageDetector = NaturalLanguageDetector()
+        languageDetector: LanguageDetector = NaturalLanguageDetector(),
+        registerCardProvider: @escaping @MainActor () -> RegisterCard? = { SettingsStore.shared.registerCard }
     ) {
         self.init(
             providerFactory: { translator },
@@ -125,7 +135,8 @@ final class TranslationWorkflow {
             multiVariantRewriteEnabledProvider: multiVariantRewriteEnabledProvider,
             captureService: captureService,
             ocrEngine: ocrEngine,
-            languageDetector: languageDetector
+            languageDetector: languageDetector,
+            registerCardProvider: registerCardProvider
         )
     }
 
@@ -199,10 +210,13 @@ final class TranslationWorkflow {
             return
         }
 
+        // v0.10.0 — outbound translate composes the active VN register
+        // card into the persona style (no-op when nil/inactive).
+        let registerPersona = persona.withRegisterCard(registerCardProvider())
         do {
             let result = try await translator.translate(TranslationJob(
                 text: sourceText,
-                style: persona,
+                style: registerPersona,
                 sourceLanguage: primaryLanguageProvider(),
                 glossary: glossaryProvider()
             ))
@@ -302,7 +316,14 @@ final class TranslationWorkflow {
 
         // v0.8.5 — decorate the style with N drafts when the user has
         // opted into multi-variant rewriting.
+        // v0.10.0 — also compose the active VN register card (no-op when
+        // nil/inactive). Order: register first (it's pure prompt
+        // composition), then variant decoration (it's an LLM-call-shape
+        // change). Either order works for the prompt body but applying
+        // register before variant keeps the resulting customStyleInstruction
+        // identical between single- and multi-variant paths.
         let baseStyle = binding.style(language: primaryLanguageProvider())
+            .withRegisterCard(registerCardProvider())
         let style = multiVariantRewriteEnabledProvider()
             ? baseStyle.withVariantCount(3)
             : baseStyle
@@ -506,6 +527,7 @@ final class TranslationWorkflow {
         }
 
         let baseStyle = RewriteService.style(forPickerEntry: entry, language: primaryLanguageProvider())
+            .withRegisterCard(registerCardProvider())
         let style = multiVariantRewriteEnabledProvider()
             ? baseStyle.withVariantCount(3)
             : baseStyle

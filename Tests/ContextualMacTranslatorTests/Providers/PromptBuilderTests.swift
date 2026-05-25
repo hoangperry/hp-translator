@@ -42,6 +42,68 @@ struct PromptBuilderTests {
         #expect(prompt.hasSuffix("Return only the translation."))
     }
 
+    @Test("v0.10.0 — TranslationStyle.styleInstruction prepends RegisterCard [Register] block when active")
+    func registerCardComposesIntoStyle() {
+        // Outbound translate style with a Bắc/chị/formal register card.
+        // styleInstruction should include the composed block; the user
+        // prompt body composes via PromptBuilder.styleRule which reads
+        // styleInstruction.
+        let card = RegisterCard(dialect: .northern, kinship: .chi, formality: .formal)
+        let style = TranslationStyle(
+            direction: .outbound,
+            targetLanguage: "vi",
+            register: .formal,
+            customStyleInstruction: "Be polite."
+        ).withRegisterCard(card)
+        let job = TranslationJob(
+            text: "hi",
+            style: style,
+            sourceLanguage: "en",
+            glossary: ""
+        )
+        let prompt = PromptBuilder.userPrompt(for: job)
+        #expect(prompt.contains("[Register]"))
+        #expect(prompt.contains("Northern (Bắc) dialect"))
+        #expect(prompt.contains("addresses the listener as \"chị\""))
+        #expect(prompt.contains("formality: formal"))
+        #expect(prompt.contains("[Tone]"))
+        #expect(prompt.contains("Be polite."))
+    }
+
+    @Test("v0.10.0 — Inactive RegisterCard is a no-op (v0.9.x prompt byte-identical)")
+    func inactiveRegisterCardNoOp() {
+        // Default-init card is all-unspecified + empty roleHint = inactive.
+        let style = TranslationStyle(
+            direction: .rewrite,
+            targetLanguage: "vi",
+            register: .neutral,
+            customStyleInstruction: "Be polite."
+        ).withRegisterCard(RegisterCard())
+        let job = TranslationJob(
+            text: "hi",
+            style: style,
+            sourceLanguage: "vi",
+            glossary: ""
+        )
+        let prompt = PromptBuilder.userPrompt(for: job)
+        #expect(!prompt.contains("[Register]"))
+        #expect(!prompt.contains("[Tone]"))
+        // The original instruction still flows through unchanged.
+        #expect(prompt.contains("Be polite."))
+    }
+
+    @Test("v0.10.0 — nil RegisterCard is a no-op (existing TranslationStyle calls unchanged)")
+    func nilRegisterCardNoOp() {
+        let style = TranslationStyle(
+            direction: .rewrite,
+            targetLanguage: "vi",
+            register: .neutral,
+            customStyleInstruction: "Be polite."
+        )
+        #expect(style.registerCard == nil)
+        #expect(style.styleInstruction == "Be polite.")
+    }
+
     @Test("Empty glossary renders as `(empty)`")
     func emptyGlossaryFallback() {
         let job = TranslationJob(text: "hi", style: .vietnameseReader, sourceLanguage: "ja", glossary: ""

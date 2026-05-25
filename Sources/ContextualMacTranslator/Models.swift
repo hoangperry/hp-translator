@@ -76,6 +76,15 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
     /// Only honoured for `direction == .rewrite` — translation paths
     /// ignore it.
     let variantCount: Int
+    /// v0.10.0 — Vietnamese social register card. When non-nil and
+    /// active (≥1 axis non-`.unspecified` OR non-empty roleHint), the
+    /// computed `styleInstruction` accessor prepends a [Register]
+    /// block to the per-binding tone instruction. `nil` (the default)
+    /// preserves v0.9.x behaviour byte-identically. Threaded into
+    /// rewrite + outbound-translate paths via
+    /// `TranslationStyle.withRegisterCard(_:)`; inbound + OCR paths
+    /// deliberately ignore it (read flow, not author flow).
+    let registerCard: RegisterCard?
 
     init(
         direction: TranslationDirection,
@@ -84,7 +93,8 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
         customStyleInstruction: String = "",
         displayLabelOverride: String? = nil,
         allowsExpressiveContent: Bool = false,
-        variantCount: Int = 1
+        variantCount: Int = 1,
+        registerCard: RegisterCard? = nil
     ) {
         self.direction = direction
         self.targetLanguage = targetLanguage
@@ -95,6 +105,7 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
         // Clamp to a sane range — the multi-variant prompt requests at
         // most 5 to keep the response within typical context budgets.
         self.variantCount = max(1, min(variantCount, 5))
+        self.registerCard = registerCard
     }
 
     var languageDisplayName: String {
@@ -113,7 +124,28 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
             customStyleInstruction: customStyleInstruction,
             displayLabelOverride: displayLabelOverride,
             allowsExpressiveContent: allowsExpressiveContent,
-            variantCount: count
+            variantCount: count,
+            registerCard: registerCard
+        )
+    }
+
+    /// v0.10.0 — return a copy of this style with a different
+    /// `registerCard`. Lets every rewrite + outbound-translate site
+    /// thread the user's VN social register through without forcing
+    /// every constructor in the workflow to know about the new field.
+    /// Passing `nil` (or an inactive card) is a no-op for the
+    /// composed prompt — `styleInstruction` returns the unmodified
+    /// per-binding tone instruction.
+    func withRegisterCard(_ card: RegisterCard?) -> TranslationStyle {
+        TranslationStyle(
+            direction: direction,
+            targetLanguage: targetLanguage,
+            register: register,
+            customStyleInstruction: customStyleInstruction,
+            displayLabelOverride: displayLabelOverride,
+            allowsExpressiveContent: allowsExpressiveContent,
+            variantCount: variantCount,
+            registerCard: card
         )
     }
 
@@ -167,11 +199,28 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
     /// Style instruction passed alongside the system prompt. Uses
     /// `customStyleInstruction` when set; otherwise derives from
     /// (target language, register).
-    var styleInstruction: String {
+    ///
+    /// v0.10.0 — when `registerCard` is non-nil and active, the
+    /// composed result prepends a `[Register]` block before the
+    /// per-binding tone instruction (Q1 from define.md §8 — compose,
+    /// don't override). Inactive cards (default / all-unspecified +
+    /// empty roleHint) return the prefix unchanged → byte-identical
+    /// to v0.9.x.
+    private var baseStyleInstruction: String {
         if !customStyleInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return customStyleInstruction
         }
         return derivedStyleInstruction
+    }
+
+    /// Public accessor used by PromptBuilder. Composes the register
+    /// block when present + active; otherwise returns the raw base
+    /// instruction.
+    var styleInstruction: String {
+        guard let card = registerCard, card.isActive else {
+            return baseStyleInstruction
+        }
+        return card.prompted(prefix: baseStyleInstruction)
     }
 
     /// Default LLM instruction for this (lang, register) pair, used when
