@@ -121,10 +121,34 @@ extension WhatsNewWindowController {
         switch version {
         case "0.9.0":
             return v0_9_0Highlights
+        case "0.10.0":
+            return v0_10_0Highlights
         default:
             return nil
         }
     }
+
+    /// v0.10.0 — "Cultural Precision & Privacy" anchor narrative
+    /// (Q4 from define.md §8: "v0.10.0 hiểu xưng hô — anh/chị/em,
+    /// Bắc/Nam, formal/chat; và không gửi dữ liệu khách ra nước
+    /// ngoài khi dùng local mode.").
+    static let v0_10_0Highlights: [Highlight] = [
+        .init(
+            symbol: "person.2.wave.2",
+            title: "VN register card",
+            body: "Pin your dialect (Bắc/Nam), kinship (anh/chị/em/cháu/bạn), and formality — every rewrite + outbound translate now matches. Apple Intelligence can't do this per-locale precision. Settings → Contextual rewrite."
+        ),
+        .init(
+            symbol: "shield.lefthalf.filled",
+            title: "Privacy badge + Ollama onboarding",
+            body: "Every PreviewHUD shows whether your text went Local / Cloud / Hosted. Settings → Privacy has a one-click Ollama install helper + test-connection — không gửi dữ liệu khách ra nước ngoài khi dùng local mode."
+        ),
+        .init(
+            symbol: "list.bullet.rectangle",
+            title: "Glossary v2",
+            body: "Three new structured rule kinds: Don't translate (brands / code), Alias (casing), Always translate (jargon). Replaces the free-text blob with typed entries the LLM follows exactly. Your legacy free-text rules still flow underneath."
+        ),
+    ]
 
     static let v0_9_0Highlights: [Highlight] = [
         .init(

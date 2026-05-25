@@ -14,6 +14,98 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.10.0] — 2026-05-25
+
+**Cultural Precision & Privacy.** The major v0.10.0 minor: three new
+sub-features anchored on "Apple Intelligence can't do per-locale
+precision". Pin your Vietnamese register, see the privacy class of
+every translation, and replace the free-text glossary blob with typed
+entries the LLM follows exactly. Storage layout byte-identical to
+v0.9.x; existing settings, hotkeys, bindings, and the glossary blob
+round-trip clean.
+
+### Added — VN Social Register Card (anchor)
+
+- **`RegisterCard`** value type with 3 axes (Dialect: Bắc/Nam;
+  Kinship: anh/chị/em/cháu/bạn; Formality: formal/neutral/casual) +
+  optional 80-character roleHint. `nil` = disabled (default; v0.9.x
+  behaviour preserved). When set, every rewrite + outbound translate
+  prepends a `[Register]` block to the per-binding tone instruction.
+- **Settings → Contextual Rewrite → Vietnamese register card**
+  panel with 3 Picker dropdowns, a roleHint TextField, a Reset
+  button, and a live composed-prompt preview.
+- Composition is **prepend** (Q1 from `docs/v0.10.0/define.md` §8):
+  existing per-binding `customStyleInstruction` flows through
+  unchanged below the `[Tone]` tag.
+
+### Added — Local-LLM Privacy mode
+
+- **`ProviderPrivacyClass` enum** (`.local` / `.cloud` / `.hosted`)
+  as a new protocol member on `TranslationProvider`. All 10
+  providers classify explicitly: Ollama = `.local`, BackendProvider
+  = `.hosted`, everything else = `.cloud`.
+- **PreviewHUD Privacy badge** — every translation surfaces the
+  provider's class (🛡 Local / ☁ Cloud / 🏢 Hosted) with `.help()`
+  tooltip showing the full provider name. Stamped eagerly into
+  `TranslationStyle` at workflow construction so SwiftUI render
+  never reaches back into `providerFactory()`.
+- **Settings → Privacy** section with active-provider ribbon +
+  Vietnamese headline ("🛡 Local only — không gửi dữ liệu khách ra
+  nước ngoài" when Ollama) + collapsed Ollama onboarding card with
+  download link, two curated `ollama pull` commands (each with a
+  Copy button), Browse-more-models link, and a one-click "Test
+  Ollama connection" button (2s timeout, exact-name model match
+  via `/api/tags` JSON parse).
+
+### Added — Glossary v2-Lite (typed entries)
+
+- **`GlossaryEntry`** Codable value type with 3 kinds:
+  `.dontTranslate(term:)`, `.alias(from:to:)`, `.alwaysTranslate(term:to:)`.
+  Tagged-enum Codable shape; **forward-compatible partial recovery** —
+  unknown KindTag from a future v0.10.x is silently dropped at the
+  element level via `GlossaryEntry.decodeArray(from:)` (review H3 fix).
+- **`GlossaryComposer`** pure function composes typed entries + the
+  legacy free-text blob into the single `TranslationJob.glossary`
+  string the LLM sees. `dontTranslate` grouped under one bullet;
+  `alias` + `alwaysTranslate` render one-per-line directional pairs.
+  50-entry render cap.
+- **Settings → Glossary** editor — Add-menu for the 3 kinds, type
+  pill (tinted per kind), 1-or-2 TextFields per row, delete button,
+  drag-to-reorder via `.onMove`. Legacy free-text TextEditor moved
+  to a collapsed DisclosureGroup below.
+
+### Compatibility
+
+- Every v0.9.x persisted state round-trips clean: `RewriteBinding`,
+  `HotkeyConfig`, `TranslationStyle`, `SaaSConfig`, legacy glossary
+  string blob — all unchanged in storage. `TranslationStyle` gains
+  3 default-safe fields (`registerCard: nil`, `privacyClass: nil`,
+  `providerDisplayName: ""`).
+- Sparkle OTA from v0.6.1+ auto-updates with no manual user action.
+
+### What's-New on first launch
+
+- Pops once for v0.10.0 upgrades with 3 highlight cards (Register
+  Card / Privacy badge / Glossary v2). Doesn't steal focus.
+
+### Build
+
+- Bundle 0.10.0 (build 29).
+
+### Tests
+
+- App: **375 Swift / 79 suites** GREEN (+56 from 319 in v0.9.2):
+  +19 RegisterCard, +3 PromptBuilder integration, +15 GlossaryEntry
+  (incl. partial-recovery), +9 GlossaryComposer, +10
+  ProviderPrivacyClass + TranslationStyle stamping.
+
+### Deliver-phase review
+
+- 0 CRITICAL / 3 HIGH / 4 MED / 2 LOW from independent code-review
+  agent before tag. All 3 HIGH + 3 MED fixed inline (see commit
+  `285f519`). 2 LOW + M4 (`stamp()` helper duplication) tracked as
+  v0.10.1 carry-over.
+
 ## [0.9.2] — 2026-05-25
 
 **Second refactor patch.** No new user-facing features; clears the
