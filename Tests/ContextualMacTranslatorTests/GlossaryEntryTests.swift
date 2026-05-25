@@ -98,6 +98,62 @@ struct GlossaryEntryCodableTests {
     }
 }
 
+@Suite("GlossaryEntry.decodeArray (partial recovery)")
+struct GlossaryEntryDecodeArrayTests {
+
+    @Test("All-valid array decodes to the same shape as plain JSONDecoder")
+    func allValidEquivalent() throws {
+        let entries: [GlossaryEntry] = [
+            GlossaryEntry(kind: .dontTranslate(term: "React")),
+            GlossaryEntry(kind: .alias(from: "shopee", to: "Shopee")),
+        ]
+        let data = try JSONEncoder().encode(entries)
+        let recovered = GlossaryEntry.decodeArray(from: data)
+        let plain = try JSONDecoder().decode([GlossaryEntry].self, from: data)
+        #expect(recovered == plain)
+        #expect(recovered.count == 2)
+    }
+
+    @Test("Mixed array with one unknown KindTag preserves the valid entries (H3 fix)")
+    func mixedArrayPreservesValid() {
+        // Simulates v0.10.0 reading data persisted by a hypothetical
+        // v0.10.1 that ships a `.scoped` KindTag. Pre-H3-fix behaviour:
+        // whole list nuked → []. Post-fix: valid entries survive.
+        let mixed = Data("""
+        [
+          {"id":"00000000-0000-0000-0000-000000000001","kind":"dontTranslate","term":"React"},
+          {"id":"00000000-0000-0000-0000-000000000002","kind":"scoped","term":"X","to":"Y"},
+          {"id":"00000000-0000-0000-0000-000000000003","kind":"alias","from":"shopee","to":"Shopee"}
+        ]
+        """.utf8)
+        let recovered = GlossaryEntry.decodeArray(from: mixed)
+        #expect(recovered.count == 2)
+        #expect(recovered.contains { entry in
+            if case .dontTranslate(let term) = entry.kind { return term == "React" }
+            return false
+        })
+        #expect(recovered.contains { entry in
+            if case .alias(let from, let to) = entry.kind { return from == "shopee" && to == "Shopee" }
+            return false
+        })
+    }
+
+    @Test("Corrupted outer shape returns empty array (still no crash)")
+    func corruptedOuterShapeReturnsEmpty() {
+        let notAnArray = Data("\"oops, this is a string\"".utf8)
+        #expect(GlossaryEntry.decodeArray(from: notAnArray) == [])
+
+        let garbage = Data("not json at all".utf8)
+        #expect(GlossaryEntry.decodeArray(from: garbage) == [])
+    }
+
+    @Test("Empty array round-trips through decodeArray")
+    func emptyArrayPreserved() throws {
+        let data = try JSONEncoder().encode([GlossaryEntry]())
+        #expect(GlossaryEntry.decodeArray(from: data) == [])
+    }
+}
+
 @Suite("GlossaryEntry display helpers")
 struct GlossaryEntryDisplayTests {
 

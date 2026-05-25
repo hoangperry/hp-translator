@@ -104,6 +104,45 @@ extension GlossaryEntry: Codable {
     }
 }
 
+// MARK: - Forgiving array decode (forward-compat partial recovery)
+
+extension GlossaryEntry {
+    /// v0.10.0 deliver-phase review H3 mitigation — decode an array
+    /// of `GlossaryEntry` element-by-element and DROP entries this
+    /// build can't represent (e.g. a future `.scoped(...)` KindTag
+    /// from v0.10.1+).
+    ///
+    /// Previous behaviour (`JSONDecoder().decode([GlossaryEntry].self, ...)`)
+    /// nuked the entire list on the first unknown entry. A user with
+    /// 30 v0.10.0 entries who briefly opened v0.10.1, added one
+    /// `.scoped` entry, then downgraded would have lost all 30. This
+    /// loader preserves the 30 and silently drops the one this build
+    /// can't represent. Acceptable per define.md §6 R1 (was listed
+    /// as the intended behaviour all along — the original code didn't
+    /// match the spec).
+    ///
+    /// Returns recovered entries; passing already-valid JSON produces
+    /// the same result as a normal `decode([GlossaryEntry].self, ...)`.
+    static func decodeArray(from data: Data) -> [GlossaryEntry] {
+        // Slice the outer array via JSONSerialization, then re-serialise
+        // each element so it can flow through GlossaryEntry's own
+        // Codable. Corrupted outer shape → return [].
+        guard let raw = try? JSONSerialization.jsonObject(with: data),
+              let array = raw as? [Any] else {
+            return []
+        }
+        var out: [GlossaryEntry] = []
+        for element in array {
+            guard let elementData = try? JSONSerialization.data(withJSONObject: element),
+                  let entry = try? JSONDecoder().decode(GlossaryEntry.self, from: elementData) else {
+                continue
+            }
+            out.append(entry)
+        }
+        return out
+    }
+}
+
 // MARK: - Display
 
 extension GlossaryEntry {

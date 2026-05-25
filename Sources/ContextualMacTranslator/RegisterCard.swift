@@ -200,9 +200,12 @@ struct RegisterCard: Codable, Equatable, Hashable, Sendable {
 
         // Don't append an empty prefix on its own line — keeps the
         // composed prompt tight when the caller's instruction is "".
+        // v0.10.0 deliver-phase review M2: append the TRIMMED form so
+        // any caller-supplied trailing whitespace doesn't open a
+        // double-blank gap between [Tone] and the body.
         let trimmedPrefix = prefix.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedPrefix.isEmpty {
-            lines.append(prefix)
+            lines.append(trimmedPrefix)
         }
 
         return lines.joined(separator: "\n")

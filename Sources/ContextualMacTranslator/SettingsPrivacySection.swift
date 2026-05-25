@@ -16,23 +16,42 @@ struct SettingsPrivacySection: View {
     @Bindable var settings: SettingsStore
     @State private var ollamaExpanded = false
     @State private var testResult: TestResult? = nil
+    /// v0.10.0 — guard against concurrent taps of "Test Ollama
+    /// connection" launching multiple URLSession pings that race on
+    /// `testResult` (M1 from v0.10.0 deliver-phase review).
+    @State private var isTesting = false
+    /// v0.10.0 — cached provider class + name, populated once on view
+    /// appear and refreshed only when the user actually flips the
+    /// provider source in Settings (H1 from review — was re-allocating
+    /// a TranslationProviderFactory on every SwiftUI render pass via
+    /// the `activeProvider` computed property).
+    @State private var cachedClass: ProviderPrivacyClass = .cloud
+    @State private var cachedName: String = ""
 
     private enum TestResult: Equatable {
         case ok(model: String)
         case failed(reason: String)
     }
 
+    /// v0.10.0 — `static let` URL constants so the URL(string:)
+    /// force-unwrap evaluates once at module load instead of on every
+    /// SwiftUI render pass (H2 from review — matches the codebase's
+    /// zero-runtime-`!` policy enforced across v0.9.x).
+    private enum OllamaLinks {
+        static let download = URL(string: "https://ollama.com/download")!
+        static let library  = URL(string: "https://ollama.com/library")!
+    }
+
     // MARK: - Provider resolution
 
-    /// Resolves the currently-active provider's class + display name.
-    /// Reads through `TranslationProviderFactory` so the same logic
-    /// the workflow uses drives the badge — no chance of drift.
-    private var activeProvider: (cls: ProviderPrivacyClass, name: String) {
+    /// Re-resolve the active provider class + display name. Cheap
+    /// when called on-change (not per-render). Reads through
+    /// TranslationProviderFactory so the same logic the workflow uses
+    /// drives the badge — no chance of drift.
+    private func refreshProvider() {
         let provider = TranslationProviderFactory(settings: settings).make()
-        return (
-            type(of: provider).privacyClass,
-            type(of: provider).displayName
-        )
+        cachedClass = type(of: provider).privacyClass
+        cachedName = type(of: provider).displayName
     }
 
     var body: some View {
@@ -46,23 +65,28 @@ struct SettingsPrivacySection: View {
                     .font(.subheadline)
             }
         }
+        // v0.10.0 — refresh the cached provider only on appear + when
+        // the user changes the source/provider in Settings, NOT on
+        // every SwiftUI invalidation (H1 mitigation from review).
+        .onAppear { refreshProvider() }
+        .onChange(of: settings.directProvider) { _, _ in refreshProvider() }
+        .onChange(of: settings.translationSource) { _, _ in refreshProvider() }
     }
 
     // MARK: - Ribbon
 
     @ViewBuilder
     private var ribbon: some View {
-        let provider = activeProvider
         HStack(spacing: 10) {
-            Text("\(provider.cls.badgeSymbol) \(provider.cls.badgeLabel)")
+            Text("\(cachedClass.badgeSymbol) \(cachedClass.badgeLabel)")
                 .font(.caption.bold())
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(tint(for: provider.cls), in: Capsule())
+                .background(tint(for: cachedClass), in: Capsule())
             VStack(alignment: .leading, spacing: 2) {
-                Text(ribbonHeadline(for: provider.cls))
+                Text(ribbonHeadline(for: cachedClass))
                     .font(.body)
-                Text("Active provider: \(provider.name)")
+                Text("Active provider: \(cachedName.isEmpty ? "Resolving…" : cachedName)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -102,9 +126,9 @@ struct SettingsPrivacySection: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
-                Link("Download Ollama for Mac", destination: URL(string: "https://ollama.com/download")!)
+                Link("Download Ollama for Mac", destination: OllamaLinks.download)
                 Spacer()
-                Link("Browse models", destination: URL(string: "https://ollama.com/library")!)
+                Link("Browse models", destination: OllamaLinks.library)
             }
             .font(.caption)
 
@@ -132,10 +156,14 @@ struct SettingsPrivacySection: View {
             }
 
             HStack {
-                Button("Test Ollama connection") {
+                Button(isTesting ? "Testing…" : "Test Ollama connection") {
+                    // M1 mitigation — guard against concurrent taps
+                    // launching racing URLSession pings.
+                    guard !isTesting else { return }
                     Task { await testConnection() }
                 }
                 .controlSize(.small)
+                .disabled(isTesting)
                 Spacer()
                 resultLabel
             }
@@ -178,6 +206,9 @@ struct SettingsPrivacySection: View {
     /// red/green inline label rather than an alert — keeps the
     /// Settings window in flow.
     private func testConnection() async {
+        isTesting = true
+        defer { isTesting = false }
+
         let base = settings.ollamaBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: base + "/api/tags") else {
             testResult = .failed(reason: "Bad Ollama URL.")
@@ -194,19 +225,32 @@ struct SettingsPrivacySection: View {
                 testResult = .failed(reason: "Ollama returned HTTP \(status).")
                 return
             }
-            // Look for the configured model in /api/tags. If the body is
-            // unparseable or the model isn't listed, still report
-            // success — the daemon is reachable, just no model pulled.
-            let configuredModel = settings.ollamaModel
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let bodyText = String(data: data, encoding: .utf8) ?? ""
-            if !configuredModel.isEmpty && bodyText.contains(configuredModel) {
-                testResult = .ok(model: configuredModel)
-            } else {
-                testResult = .ok(model: "")
-            }
+            testResult = decodeTagsResponse(data: data)
         } catch {
             testResult = .failed(reason: "Couldn't reach Ollama: \(error.localizedDescription)")
         }
+    }
+
+    /// v0.10.0 — parse Ollama's `/api/tags` JSON and do exact-name
+    /// matching against `settings.ollamaModel` (M3 from review — was
+    /// using raw `bodyText.contains(...)` which gave false positives
+    /// for "qwen2" against "qwen2.5:7b-instruct"). Falls back to
+    /// "connected (no model name match)" when JSON is unparseable or
+    /// the configured model isn't listed.
+    private func decodeTagsResponse(data: Data) -> TestResult {
+        let configuredModel = settings.ollamaModel
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        struct TagsBody: Decodable {
+            struct Model: Decodable { let name: String }
+            let models: [Model]
+        }
+        if let body = try? JSONDecoder().decode(TagsBody.self, from: data) {
+            let names = body.models.map(\.name)
+            if !configuredModel.isEmpty && names.contains(configuredModel) {
+                return .ok(model: configuredModel)
+            }
+        }
+        // Daemon reachable but model not (yet) pulled.
+        return .ok(model: "")
     }
 }

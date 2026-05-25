@@ -478,14 +478,15 @@ final class SettingsStore {
 
         // Shared
         glossary = (try? keychain.read(account: Accounts.glossary)) ?? ""
-        // v0.10.0 — typed glossary entries. Fail-closed: a future
-        // build that adds a new GlossaryEntry.KindTag would throw on
-        // decode in this older build → []. Strict beats silent data
-        // loss (legacy `glossary` string blob above still flows).
+        // v0.10.0 — typed glossary entries. Forward-compat partial
+        // recovery: a future build adding a new GlossaryEntry.KindTag
+        // would persist entries this build can't represent. The
+        // forgiving loader drops only the unknown entries instead of
+        // nuking the whole list (review H3 fix; matches define.md §6
+        // R1's stated intent). Legacy blob flows untouched in parallel.
         if let json = (try? keychain.read(account: Accounts.glossaryEntries)) ?? nil,
-           let data = json.data(using: .utf8),
-           let entries = try? JSONDecoder().decode([GlossaryEntry].self, from: data) {
-            glossaryEntries = entries
+           let data = json.data(using: .utf8) {
+            glossaryEntries = GlossaryEntry.decodeArray(from: data)
         } else {
             glossaryEntries = []
         }
