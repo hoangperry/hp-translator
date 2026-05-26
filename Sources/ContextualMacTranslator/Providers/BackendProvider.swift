@@ -223,6 +223,34 @@ final class BackendProvider: TranslationProvider, StreamingTranslationProvider {
             throw HTTPClient.translationError(for: http, body: bodyData)
         }
 
+        // Graceful fallback: the SaaS Supabase Edge Function does not
+        // implement SSE on `/translate/stream` — Supabase routes the
+        // sub-path to the same `translate` function which always returns
+        // a single JSON `{ translation, provider, … }` body. Detect this
+        // by sniffing the Content-Type and emit a single `.done(...)` so
+        // upstream UX works against both the self-hosted FastAPI server
+        // (real SSE) and SaaS (one-shot JSON) without per-endpoint config.
+        let contentType = (http.value(forHTTPHeaderField: "Content-Type") ?? "").lowercased()
+        let isSSE = contentType.contains("text/event-stream")
+        if !isSSE {
+            var bodyData = Data()
+            for try await byte in bytes {
+                bodyData.append(byte)
+                if bodyData.count > 256 * 1024 { break }   // 256KB safety cap
+            }
+            if let decoded = try? JSONDecoder().decode(TranslationResult.self, from: bodyData),
+               !decoded.translation.isEmpty {
+                continuation.yield(.done(translation: decoded.translation, provider: "backend"))
+                return
+            }
+            if let decoded = try? JSONDecoder().decode(FlexibleTranslationResponse.self, from: bodyData),
+               let translation = decoded.translationText {
+                continuation.yield(.done(translation: translation, provider: "backend"))
+                return
+            }
+            throw TranslationError.missingTranslation
+        }
+
         for try await line in bytes.lines {
             // SSE frames are blank-line separated; the `URLSession.bytes.lines`
             // sequence already splits on `\n`, so each non-blank line
@@ -280,6 +308,36 @@ private struct BackendRequestBody: Encodable {
     let persona: String
     let styleInstruction: String
     let glossary: String
+
+    // Emit each field under BOTH camelCase (legacy self-hosted FastAPI in
+    // translator-server/server.py reads `sourceLanguage`, `targetLanguage`,
+    // `styleInstruction`) AND snake_case (the SaaS Supabase Edge Function
+    // at translator-supabase/supabase/functions/translate/index.ts validates
+    // `target_language` as a hard requirement). Each server ignores the
+    // unknown duplicate, so one payload works against both backends.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: DynamicKey.self)
+        try container.encode(text, forKey: DynamicKey("text"))
+        try container.encode(direction, forKey: DynamicKey("direction"))
+        try container.encode(sourceLanguage, forKey: DynamicKey("sourceLanguage"))
+        try container.encode(sourceLanguage, forKey: DynamicKey("source_language"))
+        try container.encode(targetLanguage, forKey: DynamicKey("targetLanguage"))
+        try container.encode(targetLanguage, forKey: DynamicKey("target_language"))
+        try container.encode(persona, forKey: DynamicKey("persona"))
+        try container.encode(persona, forKey: DynamicKey("persona_id"))
+        try container.encode(styleInstruction, forKey: DynamicKey("styleInstruction"))
+        try container.encode(styleInstruction, forKey: DynamicKey("style_instruction"))
+        try container.encode(glossary, forKey: DynamicKey("glossary"))
+    }
+
+    private struct DynamicKey: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+
+        init(_ value: String) { self.stringValue = value }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
 }
 
 private struct FlexibleTranslationResponse: Decodable {

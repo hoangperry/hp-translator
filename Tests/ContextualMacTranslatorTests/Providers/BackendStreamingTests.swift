@@ -11,10 +11,12 @@ import Testing
 final class StreamingStubProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var responder: ((URLRequest) -> StreamingStubResponse)?
     nonisolated(unsafe) static var capturedRequests: [URLRequest] = []
+    nonisolated(unsafe) static var capturedBodies: [Data] = []
 
     static func reset() {
         responder = nil
         capturedRequests = []
+        capturedBodies = []
     }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
@@ -22,6 +24,24 @@ final class StreamingStubProtocol: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         Self.capturedRequests.append(self.request)
+        // URLSession converts Data bodies to streams when routing through a
+        // custom URLProtocol — read the stream so dual-emit body contract
+        // tests can inspect the JSON payload.
+        if let body = self.request.httpBody {
+            Self.capturedBodies.append(body)
+        } else if let stream = self.request.httpBodyStream {
+            stream.open()
+            defer { stream.close() }
+            var buffer = Data()
+            let chunkSize = 4096
+            var chunk = [UInt8](repeating: 0, count: chunkSize)
+            while stream.hasBytesAvailable {
+                let read = stream.read(&chunk, maxLength: chunkSize)
+                if read <= 0 { break }
+                buffer.append(chunk, count: read)
+            }
+            Self.capturedBodies.append(buffer)
+        }
         guard let responder = Self.responder else {
             client?.urlProtocol(self, didFailWithError: URLError(.unknown))
             return
@@ -149,6 +169,78 @@ struct BackendStreamingTests {
         #expect(request.url?.path == "/translate/stream")
         #expect(request.value(forHTTPHeaderField: "Idempotency-Key") == "fixed-stream-key")
         #expect(request.value(forHTTPHeaderField: "Accept") == "text/event-stream")
+    }
+
+    // SaaS Supabase Edge Function does NOT implement /translate/stream as
+    // SSE — Supabase routes the sub-path to the same `translate` function
+    // which always returns a single JSON `{ translation, provider, … }`
+    // body with Content-Type: application/json. The streaming flow must
+    // sniff Content-Type and gracefully decode the one-shot JSON instead
+    // of looping forever and throwing missingTranslation. This test pins
+    // that fallback so a future refactor does not silently re-break SaaS
+    // translates.
+    @Test("Non-SSE JSON response decodes via fallback path")
+    func nonSSEJSONFallback() async throws {
+        StreamingStubProtocol.reset()
+        StreamingStubProtocol.responder = { _ in
+            let body = Data(#"""
+            {"translation":"Xin chào","provider":"gemini-flash","model":"gemini-3.1-flash-lite","cache_hit":false,"input_tokens":12,"output_tokens":4,"cost_usd_micros":7}
+            """#.utf8)
+            let response = HTTPURLResponse(
+                url: URL(string: "http://127.0.0.1:8765/translate/stream")!,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return StreamingStubResponse(response: response, chunks: [body])
+        }
+        let backend = makeBackend()
+
+        var doneTranslation: String?
+        for try await update in backend.translateStreaming(makeJob()) {
+            if case .done(let translation, _) = update {
+                doneTranslation = translation
+            }
+        }
+
+        #expect(doneTranslation == "Xin chào")
+    }
+
+    // Contract: request body MUST carry every routing field in BOTH camelCase
+    // (legacy self-hosted FastAPI server) and snake_case (Supabase Edge
+    // Function, which throws HTTP 400 "target_language is required" if the
+    // snake_case key is missing). Regressing one breaks one backend silently.
+    @Test("Body emits dual camelCase + snake_case for both backends")
+    func bodyEmitsDualNamingConventions() async throws {
+        StreamingStubProtocol.reset()
+        StreamingStubProtocol.responder = { _ in
+            StreamingStubResponse(
+                response: httpResponse(status: 200),
+                chunks: [sseFrame(["done": true, "translation": "", "provider": "mock"])]
+            )
+        }
+        let backend = makeBackend()
+
+        for try await _ in backend.translateStreaming(makeJob()) { /* drain */ }
+
+        let body = try #require(StreamingStubProtocol.capturedBodies.first)
+        let payload = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+        // camelCase keys for legacy self-hosted FastAPI (translator-server/server.py)
+        #expect(payload["sourceLanguage"] as? String == "auto")
+        #expect(payload["targetLanguage"] as? String == "vi")
+        #expect(payload["styleInstruction"] as? String != nil)
+        #expect(payload["persona"] as? String == "vietnameseReader")
+
+        // snake_case keys for SaaS Supabase translate Edge Function
+        #expect(payload["source_language"] as? String == "auto")
+        #expect(payload["target_language"] as? String == "vi")
+        #expect(payload["style_instruction"] as? String != nil)
+        #expect(payload["persona_id"] as? String == "vietnameseReader")
+
+        // Common keys appear once
+        #expect(payload["text"] as? String == "xin chao")
+        #expect(payload["glossary"] as? String == "")
     }
 
     @Test("Mid-stream error frame surfaces as serverProblem throw")
