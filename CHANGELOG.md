@@ -14,6 +14,93 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.11.0] — 2026-05-27
+
+**Prompt Engineer mode.** Type a minimal Vietnamese keyword sketch of
+a coding task, press a hotkey, and the app pastes back a complete,
+well-structured English prompt for Claude Code, Codex, ChatGPT, or
+Claude Desktop. The same hotkey machinery as translate/rewrite, with
+a dedicated server prompt + temperature tuned for expansion.
+
+Closes the user-reported gap documented in
+`/recipes/prompt-expander` as a Path A workaround — Path B (this
+release) makes the feature first-class.
+
+### Added — `TranslationDirection.expand` + `PromptBinding`
+
+- New `TranslationDirection.expand` enum case alongside `.inbound`,
+  `.outbound`, `.rewrite`.
+- New `PromptBinding` data type: `id`, `name`, `hotkey`,
+  `targetLanguage` (default `"en"`), `styleInstruction` (defaults to
+  shared `PromptExpansion.defaultStyleInstruction` template when
+  blank — same meta-prompt documented on the marketing recipe page).
+- `SettingsStore.promptBindings: [PromptBinding]` persisted under
+  `translator.promptBindings`. Conflict-detection sweep
+  (`bindingLabel(usingHotkey:)`) includes prompt bindings.
+
+### Added — Settings → Prompt Engineer section
+
+- New section parallel to "Contextual rewrite" with per-binding rows:
+  rename, pick target language, optional custom expansion guidelines
+  (default template hidden by default; opens via "Custom expansion
+  guidelines" toggle), hotkey recorder, delete.
+- `addPromptBinding()` cycles through `⌥P`, `⌥⇧P`, `⌥⌘P` skipping
+  hotkeys already used by inbound / outbound / rewrite / other prompt
+  bindings.
+- Gated on `rewriteAvailable` — shows an orange notice when the
+  active translation source cannot expand (DeepL, Google Translate,
+  LibreTranslate).
+
+### Added — `TranslationWorkflow.expandAndSend(binding:)`
+
+- Capture selected text → build `TranslationJob` with `direction =
+  .expand` + the binding's effective style instruction → translate via
+  the active provider → always preview via PreviewHUD (expanded
+  prompts are N× longer than the input; user must skim before paste)
+  → paste on confirm.
+- Reuses the focus-guard + clipboard-snapshot infrastructure from
+  `translateAndSend` and `rewriteAndSend`.
+- `AppDelegate.applyHotKeys()` registers all `settings.promptBindings`
+  on the same gate as rewrite bindings.
+
+### Added — Direct API parity
+
+- `PromptBuilder.expandSystemPrompt` mirrors the Supabase
+  `EXPAND_SYSTEM_PROMPT` so direct-API providers (Gemini direct,
+  OpenAI direct, etc.) produce the same expansion quality as the SaaS
+  backend without any backend round-trip.
+- `PromptBuilder.userPrompt(for:)` switch grows an `.expand` case that
+  drops Source language and adds "Target language for the expanded
+  prompt:" framing.
+
+### Server side (already deployed, see translator-platform commit `d772dcc`)
+
+- Supabase `translate` Edge Function accepts `direction: "expand"`,
+  swaps to `EXPAND_SYSTEM_PROMPT`, bumps temperature 0.3 → 0.6, and
+  drops the Source language line from the user prompt.
+- Cache key already included `direction` from v0.10.6, so expand /
+  rewrite / translate of the same input get separate cache slots.
+
+### Tests
+
+- New `PromptBindingTests` suite (7 tests): Codable roundtrip,
+  default-style-instruction fallback (empty / whitespace),
+  custom-instruction precedence, `style()` direction pinning,
+  SettingsStore persistence, hotkey-conflict detection.
+- New `ExpandDirectionWireFormatTests` suite (2 tests): pins
+  `TranslationDirection.expand.rawValue == "expand"` and the JSON
+  encoding shape.
+- Extended `BackendStreamingTests` with an end-to-end "direction=expand
+  reaches the wire body" test so a regression in the dual-emit
+  encoder cannot silently downgrade Prompt Engineer jobs.
+- 400 tests pass (was 390, +10).
+
+### Risk-free upgrade
+
+UserDefaults adds one new key (`translator.promptBindings`) that
+defaults to an empty array on existing installs. Users opt in by
+adding a binding in Settings → Prompt Engineer.
+
 ## [0.10.6] — 2026-05-27
 
 **Rewrite works on SaaS backend.** User-reported bug: pressing a tone
