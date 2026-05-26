@@ -104,9 +104,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.10.2</string>
+  <string>0.10.3</string>
   <key>CFBundleVersion</key>
-  <string>31</string>
+  <string>32</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>
@@ -130,6 +130,24 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+
+# v0.10.3 — strip AppleDouble metadata files (._*) and .DS_Store BEFORE
+# signing. SwiftPM extracts Sparkle.xcframework from artifacts in a way
+# that leaves ._* metadata files inside the framework on macOS, and
+# `ditto -c -k` faithfully includes them in the distribution ZIP. The
+# files are invisible to `codesign --sign` (which signs the *real*
+# files), but post-extraction `codesign --verify --deep --strict`
+# treats them as "file added" foreign content and reports the bundle
+# as having a "sealed resource is missing or invalid" — Gatekeeper
+# then refuses to launch the app on the user's machine, and Sparkle's
+# Installer.xpc fails verification mid-update. v0.10.0/v0.10.1/v0.10.2
+# all shipped with this bug; v0.10.3 closes it.
+echo "Stripping AppleDouble metadata before codesign..."
+find "$APP_DIR" -name "._*" -delete 2>/dev/null || true
+find "$APP_DIR" -name ".DS_Store" -delete 2>/dev/null || true
+# `dot_clean` is the canonical Apple tool for this — handles both
+# in-band ._files and resource fork forks. Belt-and-braces.
+dot_clean -m "$APP_DIR" 2>/dev/null || true
 
 # Code-signing order is non-trivial when Sparkle.framework is embedded.
 # We must sign the innermost components first (XPC services with their
@@ -198,5 +216,27 @@ else
   codesign --force --sign - "$APP_DIR"
 fi
 codesign --verify --strict --verbose=2 "$APP_DIR"
+
+# v0.10.3 — second-pass strip in case any tool added ._* during the
+# sign chain (rare but seen with some macOS toolchain combinations).
+# Run AFTER codesign so we are removing only metadata files, not any
+# real code signature artifact.
+find "$APP_DIR" -name "._*" -delete 2>/dev/null || true
+find "$APP_DIR" -name ".DS_Store" -delete 2>/dev/null || true
+
+# v0.10.3 — final invariant check. If `codesign --verify --deep
+# --strict` or `spctl --assess` fails here, the bundle WILL fail on
+# the user's machine after Sparkle extracts it. Better to fail the
+# build than to ship another broken release.
+echo "Verifying bundle is launch-ready (deep + strict + Gatekeeper)…"
+codesign --verify --deep --strict --verbose=2 "$APP_DIR" 2>&1 | tail -3
+if [ -n "$CODESIGN_IDENTITY" ]; then
+  # Notarization staple isn't done yet at this point of the script
+  # (caller does that post-notary), so spctl will reject for missing
+  # ticket — that's expected. We only re-verify the sealed-resources
+  # invariant via codesign here; the caller's notary+staple+verify
+  # flow handles Gatekeeper acceptance after stapling.
+  echo "Note: Gatekeeper acceptance is verified by the caller after staple."
+fi
 
 echo "$APP_DIR"

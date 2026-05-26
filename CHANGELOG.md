@@ -14,6 +14,47 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.10.3] — 2026-05-26
+
+**Distribution hotfix: AppleDouble metadata files corrupted Gatekeeper
+acceptance.** v0.10.0, v0.10.1, and v0.10.2 all shipped with hidden
+`._*` AppleDouble metadata files inside the embedded
+`Sparkle.framework` (introduced by SwiftPM's xcframework extraction
+on macOS). The files were invisible to `codesign --sign`, so the
+build succeeded; but post-extraction
+`codesign --verify --deep --strict` treated them as foreign content
+("file added") and reported the bundle as having a *"sealed resource
+is missing or invalid"*. Gatekeeper refused to launch the app on the
+user's machine, and Sparkle's `Installer.xpc` failed verification
+mid-update — surfacing as "app chưa sign" when users tried to upgrade.
+
+v0.10.3 carries no code changes — it is purely the v0.10.2 codebase
+re-packaged with the build pipeline fixed.
+
+### Fixed — build pipeline strips AppleDouble before signing
+
+- `scripts/package_app.sh` now runs `find … -name "._*" -delete` and
+  `dot_clean -m` against the bundle BEFORE the codesign chain starts
+  AND once more after codesign completes (defense in depth). The
+  final `codesign --verify --deep --strict` step is now part of the
+  build itself — if a future tool combination re-introduces the
+  problem the build will fail loudly instead of silently shipping a
+  broken release.
+- Verified end-to-end: extracting the v0.10.3 distribution ZIP yields
+  a bundle that passes `codesign --verify --deep --strict` AND
+  `spctl --assess --type execute` reports
+  `accepted source=Notarized Developer ID`.
+
+### How to upgrade
+
+If Sparkle's Check for Updates fails to install v0.10.3 (it might if
+the already-installed v0.10.0 → v0.10.2 update was already aborted
+mid-flight), **download the v0.10.3 ZIP manually** from the GitHub
+release page and drag the `.app` into `/Applications` replacing the
+old copy. Future Sparkle updates from v0.10.3 onwards will install
+cleanly because the v0.10.3 bundle no longer contains the offending
+metadata files.
+
 ## [0.10.2] — 2026-05-26
 
 **Permission UX & TCC stability.** A user-reported pain point: every

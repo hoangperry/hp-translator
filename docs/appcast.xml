@@ -8,6 +8,28 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.10.3</title>
+      <pubDate>Tue, 26 May 2026 23:58:00 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Distribution hotfix — Gatekeeper acceptance</h2>
+        <p>v0.10.0, v0.10.1, and v0.10.2 all shipped with hidden AppleDouble metadata files (<code>._*</code>) inside the embedded Sparkle.framework — invisible to <code>codesign --sign</code>, so the build looked fine, but on the user's machine <code>codesign --verify --deep --strict</code> rejected the bundle as <em>"a sealed resource is missing or invalid"</em>. Gatekeeper refused to launch the app, and Sparkle's Installer.xpc failed verification mid-update — surfacing as <em>"app chưa sign"</em> when users tried to upgrade.</p>
+        <p>v0.10.3 is the v0.10.2 codebase re-packaged with the build pipeline fixed.</p>
+        <ul>
+          <li><strong>Strip <code>._*</code> before AND after codesign</strong> — <code>find … -name "._*" -delete</code> + <code>dot_clean -m</code> at both points in <code>package_app.sh</code>.</li>
+          <li><strong>Distribution ZIP uses <code>ditto --norsrc --noextattr --noacl</code></strong> — even though the source bundle is clean, ditto would otherwise re-add <code>._*</code> files into the ZIP from extended attributes on disk. The new flags skip xattr packaging entirely.</li>
+          <li><strong>Verified end-to-end</strong> — extracting the v0.10.3 ZIP yields a bundle where <code>codesign --verify --deep --strict</code> passes and <code>spctl --assess</code> reports <code>accepted source=Notarized Developer ID</code>.</li>
+        </ul>
+        <p><strong>If Sparkle's Check for Updates fails to install v0.10.3</strong> (likely if v0.10.0 → v0.10.2 was aborted mid-flight), download the v0.10.3 ZIP manually from the <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.10.3">release page</a> and drag the <code>.app</code> into <code>/Applications</code> replacing the old copy. Future Sparkle updates from v0.10.3 onwards work normally.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.10.3/Contextual-Mac-Translator-v0.10.3-macos-arm64.zip"
+        sparkle:version="32"
+        sparkle:shortVersionString="0.10.3"
+        sparkle:edSignature="+W+ZfCl5xTtUVLWNwvdT9EE5xBTDk3HR3cYdMvBUFajtp4OG2a07FAnrPxjff4Bb6JWg4PFItiOqMQxCzkLQCA==" length="2119906"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.10.2</title>
       <pubDate>Tue, 26 May 2026 18:24:00 +0700</pubDate>
       <description><![CDATA[
