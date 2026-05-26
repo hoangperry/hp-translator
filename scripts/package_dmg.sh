@@ -61,6 +61,18 @@ hdiutil create \
 
 hdiutil verify "$DMG_PATH" >/dev/null
 
+# v0.10.4 — explicit Developer ID signature on the DMG itself. The
+# .app inside the DMG is already signed + (will be) notarized +
+# stapled, but spctl's installer-policy assessment requires the DMG
+# wrapper to also carry a Developer ID signature — without it,
+# Gatekeeper rejects the DMG as "no usable signature" even though
+# the contents are notarized. Skipped when CODESIGN_IDENTITY is
+# unset (ad-hoc development path).
+if [ -n "${CODESIGN_IDENTITY:-}" ]; then
+  echo "Signing DMG with Developer ID..."
+  codesign --force --timestamp --sign "$CODESIGN_IDENTITY" "$DMG_PATH"
+fi
+
 # Sparkle prefers .zip over .dmg for updates — extracts faster and the
 # Updater.app can swap a .app bundle in place without needing a mounted
 # volume. We zip directly from the .app/, NOT from the DMG staging.

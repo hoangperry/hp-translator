@@ -14,6 +14,48 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.10.4] — 2026-05-27
+
+**Permission UX cleanup.** Drops Input Monitoring from the onboarding
+and Settings surface entirely — the app never actually needed it, and
+the Request button could not recover after the first denial (macOS
+silently suppresses the prompt forever once dismissed). Plus a small
+quality-of-life improvement on the remaining Accessibility flow: if
+the system prompt doesn't appear (because the user previously denied),
+Settings opens automatically to the Accessibility pane after a short
+grace period so the user is never left tapping an unresponsive button.
+
+### Removed — Input Monitoring permission
+
+- Carbon `RegisterEventHotKey` (the global hotkey path) and `CGEvent`
+  posting (the paste path) both run on Accessibility alone. Asking
+  for a permission we never call into was pure friction.
+- `OnboardingView` and `SettingsWindowController.permissionsSection`
+  drop the Input Monitoring row. `PermissionManager.inputMonitoringGranted`
+  and `requestInputMonitoringIfNeeded` are deleted. If a future
+  feature genuinely needs CGEvent tap, the probe + request closure
+  pattern is easy to add back fresh.
+
+### Improved — Accessibility request with auto-Settings fallback
+
+- After `requestAccessibilityIfNeeded()` fires the system prompt, a
+  1.5-second grace task re-checks the live grant. If the prompt was
+  silently suppressed (the user denied in a prior session) and the
+  grant did not arrive, `NSWorkspace` opens System Settings to the
+  Accessibility pane automatically. No more "I clicked Request and
+  nothing happened" dead end.
+
+### Tests
+
+- `PermissionManagerTests` updates: drops the 2 Input Monitoring
+  assertions, adds 2 new tests pinning the auto-open Settings contract
+  (fires when grant misses the grace window; skips when grant arrives
+  in time). 388 → 390 total tests pass.
+
+### Risk-free upgrade
+
+UserDefaults + Keychain layout unchanged from v0.10.3.
+
 ## [0.10.3] — 2026-05-26
 
 **Distribution hotfix: AppleDouble metadata files corrupted Gatekeeper
