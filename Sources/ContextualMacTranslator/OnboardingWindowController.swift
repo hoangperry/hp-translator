@@ -102,6 +102,13 @@ private struct OnboardingView: View {
             }
 
             VStack(alignment: .leading, spacing: 12) {
+                // v0.10.4 — Input Monitoring row removed. The app uses
+                // Carbon `RegisterEventHotKey` for global hotkeys and
+                // `CGEvent` to post Cmd+C/V — neither needs Input
+                // Monitoring. Asking for a permission we never actually
+                // use was pure friction (and the macOS API silently
+                // suppresses the prompt after the first denial, so the
+                // Request button could never recover the state anyway).
                 OnboardingPermissionRow(
                     title: "Accessibility",
                     badge: "Required",
@@ -109,15 +116,6 @@ private struct OnboardingView: View {
                     granted: permissionManager.accessibilityGranted,
                     openSettings: openAccessibilitySettings,
                     request: permissionManager.requestAccessibilityIfNeeded,
-                    showApp: showAppInFinder
-                )
-                OnboardingPermissionRow(
-                    title: "Input Monitoring",
-                    badge: "Optional",
-                    description: "Only needed if macOS later asks for keyboard monitoring. You can continue without it.",
-                    granted: permissionManager.inputMonitoringGranted,
-                    openSettings: openInputMonitoringSettings,
-                    request: permissionManager.requestInputMonitoringIfNeeded,
                     showApp: showAppInFinder
                 )
             }
@@ -168,10 +166,6 @@ private struct OnboardingView: View {
 
     private func openAccessibilitySettings() {
         openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-    }
-
-    private func openInputMonitoringSettings() {
-        openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
     }
 
     private func openSettings(_ value: String) {

@@ -341,8 +341,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func requestPermissions() {
+        // v0.10.4 — only Accessibility is requested. Input Monitoring
+        // was dropped from the surface area entirely; this app uses
+        // Carbon hotkeys + CGEvent posting, neither of which needs it.
         permissionManager.requestAccessibilityIfNeeded()
-        permissionManager.requestInputMonitoringIfNeeded()
     }
 
     @objc func openOnboarding() {

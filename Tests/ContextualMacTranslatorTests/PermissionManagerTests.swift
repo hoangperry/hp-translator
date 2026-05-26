@@ -3,12 +3,14 @@ import Testing
 
 @testable import ContextualMacTranslator
 
-/// v0.10.2 — PermissionManager owns the live Accessibility / Input
-/// Monitoring grant state. It also writes the live Accessibility grant
-/// back to SettingsStore so AppDelegate can detect a true→false
-/// transition on the next launch (the "TCC reset after Sparkle upgrade"
-/// recovery signal). These tests exercise the persistence wiring with
-/// injected probes — they do NOT touch the real TCC database.
+/// v0.10.2 — PermissionManager owns the live Accessibility grant state
+/// and writes it back to SettingsStore so AppDelegate can detect a
+/// true→false transition on the next launch (the "TCC reset after
+/// Sparkle upgrade" recovery signal). v0.10.4 dropped Input Monitoring
+/// from the surface area entirely — see the suite's individual test
+/// comments for the why. These tests exercise the persistence + the
+/// auto-open-Settings fallback with injected probes; none of them
+/// touch the real TCC database.
 @Suite("PermissionManager")
 @MainActor
 struct PermissionManagerTests {
@@ -40,8 +42,7 @@ struct PermissionManagerTests {
 
         _ = PermissionManager(
             settings: settings,
-            accessibilityProbe: { false },   // live state diverges from persisted
-            inputMonitoringProbe: { false }
+            accessibilityProbe: { false }   // live state diverges from persisted
         )
 
         // init reads the live state into accessibilityGranted but must
@@ -60,8 +61,7 @@ struct PermissionManagerTests {
         let liveGranted = Box(false)
         let pm = PermissionManager(
             settings: settings,
-            accessibilityProbe: { liveGranted.value },
-            inputMonitoringProbe: { false }
+            accessibilityProbe: { liveGranted.value }
         )
         pm.refresh()
         #expect(settings.lastKnownAccessibilityGranted == false)
@@ -82,8 +82,7 @@ struct PermissionManagerTests {
 
         let pm = PermissionManager(
             settings: fixture.store,
-            accessibilityProbe: { true },
-            inputMonitoringProbe: { false }
+            accessibilityProbe: { true }
         )
 
         // Snapshot the underlying UserDefaults key and clear it; if
@@ -100,14 +99,12 @@ struct PermissionManagerTests {
     func nilSettingsIsAllowed() {
         let pm = PermissionManager(
             settings: nil,
-            accessibilityProbe: { true },
-            inputMonitoringProbe: { true }
+            accessibilityProbe: { true }
         )
 
         // Just verifying the call does not crash; no settings to assert.
         pm.refresh()
         #expect(pm.accessibilityGranted == true)
-        #expect(pm.inputMonitoringGranted == true)
     }
 
     @Test("requestAccessibilityIfNeeded invokes the request action when not yet granted")
@@ -117,7 +114,6 @@ struct PermissionManagerTests {
         let pm = PermissionManager(
             settings: settings,
             accessibilityProbe: { false },
-            inputMonitoringProbe: { false },
             requestAccessibilityAction: { requestCount.value += 1 }
         )
 
@@ -136,21 +132,60 @@ struct PermissionManagerTests {
         let pm = PermissionManager(
             settings: settings,
             accessibilityProbe: { true },
-            inputMonitoringProbe: { false },
             requestAccessibilityAction: { requestCount.value += 1 }
         )
 
         pm.requestAccessibilityIfNeeded()
         #expect(requestCount.value == 0)
     }
-}
 
-/// Sendable reference cell used by tests to mutate probe state after
-/// the @Sendable probe closure has captured it. Confined to test
-/// scope; not exported to production code.
-private final class Box<T>: @unchecked Sendable {
-    var value: T
-    init(_ value: T) { self.value = value }
+    @Test("v0.10.4: auto-opens Settings if grant doesn't arrive within the grace period")
+    func autoOpensSettingsWhenPromptSuppressed() async {
+        // Simulate the "user previously denied, macOS now silently
+        // suppresses CGRequest…" scenario: probe stays false even after
+        // the request action fires. PermissionManager must detect the
+        // missing grant within the grace window and call the
+        // openAccessibilitySettings closure so the user has a path out.
+        let settings = makeSettings("auto-open").store
+        let openCount = Box(0)
+        let pm = PermissionManager(
+            settings: settings,
+            accessibilityProbe: { false },
+            requestAccessibilityAction: { /* macOS swallowed it */ },
+            openAccessibilitySettings: { openCount.value += 1 }
+        )
+
+        pm.requestAccessibilityIfNeeded()
+        // Grace period is 1.5s; wait a bit longer to let the scheduled
+        // Task complete deterministically on slow CI hosts.
+        try? await Task.sleep(for: .seconds(2))
+        #expect(openCount.value == 1)
+    }
+
+    @Test("v0.10.4: does NOT auto-open Settings if grant arrives during the grace period")
+    func skipsAutoOpenWhenGrantArrives() async {
+        // The other half of the contract: when the user actually clicks
+        // "Allow" on the system prompt during the grace window, the
+        // probe flips to true and the auto-open Settings step is
+        // skipped — no double-trigger noise.
+        let settings = makeSettings("skip-auto-open").store
+        let openCount = Box(0)
+        let liveGranted = Box(false)
+        let pm = PermissionManager(
+            settings: settings,
+            accessibilityProbe: { liveGranted.value },
+            requestAccessibilityAction: { /* prompt shown */ },
+            openAccessibilitySettings: { openCount.value += 1 }
+        )
+
+        pm.requestAccessibilityIfNeeded()
+        // Simulate the user clicking Allow before the grace window
+        // expires.
+        try? await Task.sleep(for: .milliseconds(500))
+        liveGranted.value = true
+        try? await Task.sleep(for: .seconds(2))
+        #expect(openCount.value == 0)
+    }
 }
 
 /// v0.10.2 — AppDelegate launch-time recovery detection. The actual
@@ -214,4 +249,12 @@ struct LaunchRecoveryDecisionTreeTests {
         // No recovery popup needed.
         #expect(decide(firstRunCompleted: true, previouslyGranted: true, currentlyGranted: true) == .silentHotkeyRegister)
     }
+}
+
+/// Sendable reference cell used by tests to mutate probe state after
+/// the @Sendable probe closure has captured it. Confined to test
+/// scope; not exported to production code.
+private final class Box<T>: @unchecked Sendable {
+    var value: T
+    init(_ value: T) { self.value = value }
 }

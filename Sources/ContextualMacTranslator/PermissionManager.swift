@@ -6,38 +6,43 @@ import Observation
 @Observable
 final class PermissionManager {
     private(set) var accessibilityGranted: Bool
-    private(set) var inputMonitoringGranted: Bool
 
     private let settings: SettingsStore?
     private let accessibilityProbe: @MainActor () -> Bool
-    private let inputMonitoringProbe: @MainActor () -> Bool
     private let requestAccessibilityAction: @MainActor () -> Void
-    private let requestInputMonitoringAction: @MainActor () -> Void
+    private let openAccessibilitySettings: @MainActor () -> Void
 
     /// `settings` is optional so tests can construct a probe-only
     /// instance without spinning up a UserDefaults / Keychain pair.
     /// Production code in `AppDelegate` always passes `SettingsStore.shared`
-    /// so the `lastKnownAccessibilityGranted` recovery signal stays
-    /// in sync across launches.
+    /// so the `lastKnownAccessibilityGranted` recovery signal stays in
+    /// sync across launches.
+    ///
+    /// v0.10.4 — Input Monitoring was removed. This app uses Carbon
+    /// `RegisterEventHotKey` for global hotkeys (no Input Monitoring
+    /// needed) and `CGEvent` to post Cmd+C/V (covered by Accessibility),
+    /// so the previously-asked permission was always a UX dead end —
+    /// macOS's `CGRequestListenEventAccess` only prompts once per launch,
+    /// after which TCC suppresses the prompt forever and users have no
+    /// way to recover via the Request button.
     init(
         settings: SettingsStore? = nil,
         accessibilityProbe: @MainActor @escaping () -> Bool = { AXIsProcessTrusted() },
-        inputMonitoringProbe: @MainActor @escaping () -> Bool = { CGPreflightListenEventAccess() },
         requestAccessibilityAction: @MainActor @escaping () -> Void = {
             let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
         },
-        requestInputMonitoringAction: @MainActor @escaping () -> Void = {
-            _ = CGRequestListenEventAccess()
+        openAccessibilitySettings: @MainActor @escaping () -> Void = {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                NSWorkspace.shared.open(url)
+            }
         }
     ) {
         self.settings = settings
         self.accessibilityProbe = accessibilityProbe
-        self.inputMonitoringProbe = inputMonitoringProbe
         self.requestAccessibilityAction = requestAccessibilityAction
-        self.requestInputMonitoringAction = requestInputMonitoringAction
+        self.openAccessibilitySettings = openAccessibilitySettings
         self.accessibilityGranted = accessibilityProbe()
-        self.inputMonitoringGranted = inputMonitoringProbe()
         // Init does NOT sync the persisted record — AppDelegate must
         // read SettingsStore.lastKnownAccessibilityGranted FIRST so it
         // can detect the true→false transition. The first refresh()
@@ -46,21 +51,36 @@ final class PermissionManager {
 
     func refresh() {
         accessibilityGranted = accessibilityProbe()
-        inputMonitoringGranted = inputMonitoringProbe()
         syncPersistedGrantRecord()
     }
 
+    /// v0.10.4 — fires the system Accessibility prompt and, if the user
+    /// has previously denied (in which case macOS silently swallows
+    /// further prompts), auto-opens System Settings to the Accessibility
+    /// pane after a short grace period so the user is never left
+    /// staring at an unresponsive Request button. The grace period
+    /// gives a freshly-shown system prompt time to be accepted before
+    /// we redundantly open Settings.
     func requestAccessibilityIfNeeded() {
         refresh()
         guard !accessibilityGranted else { return }
         requestAccessibilityAction()
-        refreshLater()
-    }
-
-    func requestInputMonitoringIfNeeded() {
-        refresh()
-        guard !inputMonitoringGranted else { return }
-        requestInputMonitoringAction()
+        Task { @MainActor in
+            // 1.5s — long enough that a user who genuinely just clicked
+            // "Allow" on the system prompt will have already triggered
+            // the TCC database update by the time we re-check; short
+            // enough that the auto-open fallback feels responsive when
+            // macOS suppressed the prompt outright.
+            try? await Task.sleep(for: .milliseconds(1500))
+            refresh()
+            if !accessibilityGranted {
+                openAccessibilitySettings()
+            }
+        }
+        // Defense in depth: a separate 2s tick re-reads the live grant
+        // so the UI flips to "Granted" promptly once the user toggles
+        // the checkbox in System Settings (the OnboardingView polling
+        // loop also covers this; this is the non-window code path).
         refreshLater()
     }
 
@@ -76,10 +96,6 @@ final class PermissionManager {
 
     private func refreshLater() {
         Task { @MainActor in
-            // TCC database settles a moment after the user clicks
-            // "Allow" in the system prompt. 2s is conservative; the
-            // OnboardingView polling loop continues refreshing every
-            // second in parallel, so this is belt-and-braces.
             try? await Task.sleep(for: .seconds(2))
             refresh()
         }

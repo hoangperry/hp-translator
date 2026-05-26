@@ -671,15 +671,14 @@ struct SettingsView: View {
 
     private var permissionsSection: some View {
         Section("Permissions") {
+            // v0.10.4 — Input Monitoring row dropped from Settings.
+            // Carbon `RegisterEventHotKey` (the global hotkey path) and
+            // `CGEvent` posting (the paste path) both run on Accessibility
+            // alone; the second row was never functional for this app.
             PermissionRow(
                 title: "Accessibility",
                 granted: permissionManager.accessibilityGranted,
                 action: permissionManager.requestAccessibilityIfNeeded
-            )
-            PermissionRow(
-                title: "Input Monitoring",
-                granted: permissionManager.inputMonitoringGranted,
-                action: permissionManager.requestInputMonitoringIfNeeded
             )
             HStack {
                 Button("Refresh") {
