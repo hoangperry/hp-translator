@@ -8,6 +8,28 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.11.1</title>
+      <pubDate>Wed, 27 May 2026 04:30:00 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Rewrite pronoun-preservation hotfix</h2>
+        <p>User-reported bug: a draft addressed with "em" was coming back as "anh/chị" (or vice versa) after a rewrite, inverting the entire social relationship. In Vietnamese this is a major correctness failure — pronouns ARE the relationship.</p>
+        <ul>
+          <li><strong>Mac app PromptBuilder.rewriteSystemPrompt</strong>: pronoun-preservation rule promoted to an ABSOLUTE top-level section with per-pronoun guarantees ("em" stays "em", "tôi" stays "tôi", every addressing pronoun preserved verbatim). 2 broken few-shot examples fixed; 1 new example demonstrates "em → anh" fidelity.</li>
+          <li><strong>Supabase REWRITE_SYSTEM_PROMPT</strong>: previously had no pronoun rule at all. Now mirrors PromptBuilder so SaaS users get the same quality (already deployed).</li>
+          <li>Other-language formality markers ("tu"/"vous", "tú"/"usted", "你"/"您", "ты"/"вы") added so the fix isn't VN-only.</li>
+        </ul>
+        <p>400 tests pass. UserDefaults + Keychain layout unchanged from v0.11.0.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.11.1">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.11.1/Contextual-Mac-Translator-v0.11.1-macos-arm64.zip"
+        sparkle:version="37"
+        sparkle:shortVersionString="0.11.1"
+        sparkle:edSignature="HrWomJiSOVUH5SYI4YsNRNWmC+YN4gvqTOXbNwpdZxZQ6mMfCTDsETg0pFPdgr/ld6Pg2ilsNVPHOyD4MGpHAQ==" length="2147253"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.11.0</title>
       <pubDate>Wed, 27 May 2026 04:00:00 +0700</pubDate>
       <description><![CDATA[
