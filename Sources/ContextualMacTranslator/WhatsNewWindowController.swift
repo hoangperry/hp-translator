@@ -22,10 +22,10 @@ final class WhatsNewWindowController {
         window = NSWindow(contentViewController: controller)
         window.title = "What's New in v\(version)"
         window.setContentSize(NSSize(width: 560, height: 440))
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.titlebarAppearsTransparent = true
+        // v0.10.5 — reverted transparent-titlebar / clear-background.
+        // Title text was rendering directly onto the desktop with no
+        // contrast on real macOS. Standard opaque titlebar restored.
+        window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
     }

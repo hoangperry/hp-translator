@@ -13,11 +13,9 @@ final class SettingsWindowController {
         window.title = "Contextual Mac Translator"
         window.setContentSize(NSSize(width: 600, height: 700))
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        // Translucent window so the grouped Form's material backing
-        // samples the desktop — the macOS 26 System Settings look.
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.titlebarAppearsTransparent = true
+        // v0.10.5 — reverted transparent-titlebar / clear-background.
+        // Title text was rendering directly onto the desktop with no
+        // contrast on real macOS. Standard opaque titlebar restored.
         window.isReleasedWhenClosed = false
         window.center()
     }

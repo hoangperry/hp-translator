@@ -30,12 +30,15 @@ final class OnboardingWindowController {
         window = NSWindow(contentViewController: controller)
         window.title = "Contextual Mac Translator"
         window.setContentSize(NSSize(width: 620, height: 500))
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
-        // Translucent window so the SwiftUI content's Liquid Glass
-        // material samples the desktop behind it — the macOS 26 look.
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.titlebarAppearsTransparent = true
+        // v0.10.5 — reverted the transparent-titlebar / clear-background
+        // experiment from v0.7.x. On real macOS the combination of
+        // `titlebarAppearsTransparent = true` + `backgroundColor = .clear`
+        // + `.fullSizeContentView` makes the window title text render
+        // straight onto the desktop wallpaper with zero contrast, which
+        // looks broken. Use a standard opaque titlebar; the SwiftUI
+        // content's `liquidGlassBackground` modifier still applies its
+        // material to the content area on macOS 26.
+        window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
     }

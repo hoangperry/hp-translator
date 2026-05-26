@@ -156,9 +156,10 @@ struct PermissionManagerTests {
         )
 
         pm.requestAccessibilityIfNeeded()
-        // Grace period is 1.5s; wait a bit longer to let the scheduled
-        // Task complete deterministically on slow CI hosts.
-        try? await Task.sleep(for: .seconds(2))
+        // Grace period is 1.5s; wait noticeably longer to absorb test-host
+        // scheduler jitter — at 2s the inner Task's wake-up was racing
+        // the assertion read, producing intermittent zero-count failures.
+        try? await Task.sleep(for: .seconds(3))
         #expect(openCount.value == 1)
     }
 
@@ -183,7 +184,8 @@ struct PermissionManagerTests {
         // expires.
         try? await Task.sleep(for: .milliseconds(500))
         liveGranted.value = true
-        try? await Task.sleep(for: .seconds(2))
+        // Same 3s margin as the sibling test to ride out scheduler jitter.
+        try? await Task.sleep(for: .seconds(3))
         #expect(openCount.value == 0)
     }
 }
