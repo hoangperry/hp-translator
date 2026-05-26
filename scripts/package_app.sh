@@ -104,9 +104,9 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.10.1</string>
+  <string>0.10.2</string>
   <key>CFBundleVersion</key>
-  <string>30</string>
+  <string>31</string>
   <key>LSMinimumSystemVersion</key>
   <string>14.0</string>
   <key>LSUIElement</key>
@@ -172,7 +172,13 @@ if [ -n "$CODESIGN_IDENTITY" ]; then
     "$FRAMEWORKS_DIR/Sparkle.framework"
 
   # 5. Main app — entitlements applied here, with hardened runtime.
+  # v0.10.2 — `--identifier` is set explicitly (instead of letting
+  # codesign infer it from CFBundleIdentifier) so the value baked into
+  # the signature is byte-stable across releases. TCC keys grants on
+  # `(identifier, designated_requirement)`; any drift in the identifier
+  # string would invalidate persisted permission grants on upgrade.
   codesign --force --options runtime --timestamp \
+    --identifier "app.lookerlab.translator" \
     --entitlements "$ENTITLEMENTS" \
     --sign "$CODESIGN_IDENTITY" \
     "$APP_DIR"
