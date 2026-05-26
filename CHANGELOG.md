@@ -14,6 +14,48 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.10.1] — 2026-05-26
+
+**SaaS backend wire-format hotfix.** v0.10.0 shipped right as the
+production SaaS Edge Function went live, and the request body the Mac
+app sends turned out to be camelCase-only while the Supabase
+`translate` function validates snake_case field names (`target_language`
+is a hard requirement). Translates against `app.contextmt.dev` failed
+with HTTP 400 immediately. The Mac app also assumed every backend
+implements SSE on `/translate/stream`; Supabase does not, so even after
+the 400 cleared the stream loop never saw a `data:`-prefixed frame and
+threw "The backend response did not include a translation."
+
+### Fixed — backend wire-format compatibility
+
+- **`BackendRequestBody` dual-emit** — every routing field now encodes
+  under both camelCase (legacy self-hosted FastAPI in
+  `translator-server/server.py`) and snake_case (SaaS Supabase Edge
+  Function). One payload works against both backends; each server
+  ignores the unknown duplicate key. Pinned by a new
+  `BackendStreamingTests` contract test so a future refactor cannot
+  silently re-break one backend.
+- **Streaming non-SSE fallback** — `BackendProvider.streamSSE` now
+  sniffs the response `Content-Type`; if it is not
+  `text/event-stream` (Supabase always returns
+  `application/json` on `/translate/stream`), the body is drained and
+  decoded as a one-shot `TranslationResult` and emitted as a single
+  `.done(...)` update. Self-hosted SSE keeps its real streaming UX.
+
+### Tests
+
+- Full suite stays GREEN at 377 tests (376 → 377; +1 fallback test).
+- Removed a stale `"0.10.0"` entry from
+  `WhatsNewHighlightsTests.unknownVersionReturnsNil` — v0.10.0
+  released its own highlight set so the value moved out of the
+  catch-all bucket.
+
+### Risk-free upgrade
+
+UserDefaults + Keychain layout byte-identical to v0.10.0. Existing
+settings, hotkey bindings, register card, and glossary entries all
+round-trip clean.
+
 ## [0.10.0] — 2026-05-25
 
 **Cultural Precision & Privacy.** The major v0.10.0 minor: three new
