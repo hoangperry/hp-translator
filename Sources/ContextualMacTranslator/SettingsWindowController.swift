@@ -32,6 +32,10 @@ struct SettingsView: View {
     @State private var inboundRecorderShown = false
     @State private var outboundRecorderID: UUID?
     @State private var rewriteRecorderID: UUID?
+    // v0.11.0 — Prompt Engineer binding hotkey recorder. Same UUID-keyed
+    // sheet pattern as outbound + rewrite recorders so multiple
+    // bindings can coexist with their own hotkeys.
+    @State private var promptRecorderID: UUID?
     @State private var pickerRecorderShown = false
     @State private var captureRecorderShown = false
     @State private var expressiveTonePromptShown = false
@@ -56,6 +60,7 @@ struct SettingsView: View {
             SettingsPrivacySection(settings: settings)
             glossarySection
             rewriteSection
+            promptEngineerSection
             captureSection
             permissionsSection
             advancedSection
@@ -93,6 +98,18 @@ struct SettingsView: View {
                     isPresented: Binding(
                         get: { rewriteRecorderID != nil },
                         set: { if !$0 { rewriteRecorderID = nil } }
+                    ),
+                    ownerBindingID: bindingID
+                )
+            }
+        }
+        .sheet(item: $promptRecorderID) { bindingID in
+            if let index = settings.promptBindings.firstIndex(where: { $0.id == bindingID }) {
+                HotkeyRecorderSheet(
+                    hotkey: $settings.promptBindings[index].hotkey,
+                    isPresented: Binding(
+                        get: { promptRecorderID != nil },
+                        set: { if !$0 { promptRecorderID = nil } }
                     ),
                     ownerBindingID: bindingID
                 )
@@ -598,6 +615,66 @@ struct SettingsView: View {
 
     private func removeRewriteBinding(_ binding: RewriteBinding) {
         settings.rewriteBindings.removeAll { $0.id == binding.id }
+    }
+
+    // MARK: - Prompt Engineer (v0.11.0)
+
+    private var promptEngineerSection: some View {
+        Section("Prompt Engineer") {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Type minimal Vietnamese keywords, get a full English prompt for AI coding assistants (Claude Code, Codex, ChatGPT, Claude Desktop). Each binding gets its own hotkey + customisable expansion guidelines. See the recipe at contextmt.dev/recipes/prompt-expander.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !settings.rewriteAvailable {
+                Label("Prompt expansion needs an LLM provider (Gemini, Ollama, OpenAI-compatible, or Contextual MT backend). DeepL and Google Translate cannot expand prompts.", systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Prompt bindings")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    Button("Add binding") { addPromptBinding() }
+                }
+                ForEach($settings.promptBindings) { $binding in
+                    PromptBindingRow(
+                        binding: $binding,
+                        onChangeHotkey: { promptRecorderID = binding.id },
+                        onDelete: { removePromptBinding(binding) }
+                    )
+                }
+                if settings.promptBindings.isEmpty {
+                    Text("No prompt bindings yet. Add one above to assign a hotkey for prompt expansion.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func addPromptBinding() {
+        // Cycle through ⌥P / ⌥⇧P / ⌥⌘P, skipping anything already used.
+        let candidates: [HotkeyConfig] = [
+            HotkeyConfig(keyCode: kVK_ANSI_P, modifiers: optionKey),
+            HotkeyConfig(keyCode: kVK_ANSI_P, modifiers: optionKey | shiftKey),
+            HotkeyConfig(keyCode: kVK_ANSI_P, modifiers: optionKey | cmdKey),
+        ]
+        var used = Set(settings.outboundBindings.map(\.hotkey))
+        used.formUnion(settings.rewriteBindings.map(\.hotkey))
+        used.formUnion(settings.promptBindings.map(\.hotkey))
+        used.insert(settings.inboundBinding.hotkey)
+        let hotkey = candidates.first { !used.contains($0) } ?? candidates[0]
+        settings.promptBindings.append(PromptBinding(hotkey: hotkey))
+    }
+
+    private func removePromptBinding(_ binding: PromptBinding) {
+        settings.promptBindings.removeAll { $0.id == binding.id }
     }
 
     // MARK: - OCR capture (v0.9.0)

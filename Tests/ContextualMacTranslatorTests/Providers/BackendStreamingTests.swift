@@ -105,6 +105,20 @@ private func makeJob() -> TranslationJob {
     )
 }
 
+/// v0.11.0 — A Prompt Engineer (.expand) job. Direction must flow
+/// through the BackendProvider dual-emit body so the SaaS Edge Function
+/// routes to EXPAND_SYSTEM_PROMPT.
+private func makeExpandJob() -> TranslationJob {
+    let style = TranslationStyle(
+        direction: .expand,
+        targetLanguage: "en",
+        register: .neutral,
+        customStyleInstruction: "test expansion guidelines",
+        displayLabelOverride: "Test prompt"
+    )
+    return TranslationJob(text: "fix bug login", style: style, sourceLanguage: "vi", glossary: "")
+}
+
 @Suite("BackendProvider streaming", .serialized)
 @MainActor
 struct BackendStreamingTests {
@@ -241,6 +255,32 @@ struct BackendStreamingTests {
         // Common keys appear once
         #expect(payload["text"] as? String == "xin chao")
         #expect(payload["glossary"] as? String == "")
+    }
+
+    // Contract: direction.rawValue MUST flow through the wire body
+    // verbatim so the Supabase Edge Function's `direction === "expand"`
+    // route fires for Prompt Engineer (v0.11.0) jobs. The previous
+    // dual-emit test already covers an outbound job (direction="outbound");
+    // this one pins the .expand case end-to-end.
+    @Test("v0.11.0: direction=expand reaches the wire body")
+    func expandDirectionReachesBody() async throws {
+        StreamingStubProtocol.reset()
+        StreamingStubProtocol.responder = { _ in
+            StreamingStubResponse(
+                response: httpResponse(status: 200),
+                chunks: [sseFrame(["done": true, "translation": "", "provider": "mock"])]
+            )
+        }
+        let backend = makeBackend()
+
+        for try await _ in backend.translateStreaming(makeExpandJob()) { /* drain */ }
+
+        let body = try #require(StreamingStubProtocol.capturedBodies.first)
+        let payload = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(payload["direction"] as? String == "expand")
+        #expect(payload["targetLanguage"] as? String == "en")
+        #expect(payload["target_language"] as? String == "en")
+        #expect(payload["text"] as? String == "fix bug login")
     }
 
     @Test("Mid-stream error frame surfaces as serverProblem throw")

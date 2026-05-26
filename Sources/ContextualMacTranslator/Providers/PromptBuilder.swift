@@ -49,10 +49,34 @@ enum PromptBuilder {
     Output: Em rất xin lỗi về sự cố vừa rồi ạ. Trường hợp này phát sinh từ khâu vận chuyển, em sẽ hỗ trợ kiểm tra và xử lý sớm cho mình.
     """
 
+    /// v0.11.0 — system prompt for Prompt Engineer (expand) jobs.
+    /// Mirrors the Supabase Edge Function's EXPAND_SYSTEM_PROMPT so a
+    /// direct-API provider (Gemini direct, OpenAI direct, etc.)
+    /// produces the same output quality as the SaaS backend.
+    static let expandSystemPrompt = """
+    You are a prompt engineer for AI coding assistants (Claude Code, Codex, ChatGPT, Claude Desktop).
+
+    The input is a minimal keyword sketch of a coding task — typically in Vietnamese, sometimes mixed with English jargon. Expand it into a complete prompt in the target language that:
+
+    - Restates the task explicitly in one sentence at the top
+    - Lays out a numbered plan of what the assistant should do
+    - Asks for code + tests + a brief explanation of trade-offs
+    - Notes reasonable assumptions about the tech stack if the keywords omit it
+    - Requests clarifying questions only if essential context is genuinely ambiguous
+    - Preserves any concrete technical details from the input verbatim (file names, function names, version numbers, error strings)
+
+    Output ONLY the final prompt. No commentary about your translation choices, no preamble, no markdown fences around the whole output, no labels like "Prompt:" or "Here is the prompt:".
+    """
+
     /// System prompt appropriate for `job`'s direction. Translation jobs get
-    /// the translator prompt; `.rewrite` jobs get the rewrite prompt.
+    /// the translator prompt; `.rewrite` jobs get the rewrite prompt;
+    /// `.expand` jobs get the prompt-engineer prompt.
     static func systemPrompt(for job: TranslationJob) -> String {
-        job.direction == .rewrite ? rewriteSystemPrompt : systemPrompt
+        switch job.direction {
+        case .rewrite: return rewriteSystemPrompt
+        case .expand:  return expandSystemPrompt
+        case .inbound, .outbound: return systemPrompt
+        }
     }
 
     /// Style instruction derived from the (target language, register) pair
@@ -71,7 +95,30 @@ enum PromptBuilder {
             return translateUserPrompt(for: job)
         case .rewrite:
             return rewriteUserPrompt(for: job)
+        case .expand:
+            return expandUserPrompt(for: job)
         }
+    }
+
+    /// v0.11.0 — Prompt Engineer user prompt. Drops the Source language
+    /// line (input is usually VN mixed with EN jargon and pinning it
+    /// pushes the model to translate literally) and keeps Target
+    /// language so the model knows what to emit. The binding's style
+    /// instruction is the expansion guidelines — already pre-baked
+    /// with the default PromptExpansion template when blank.
+    private static func expandUserPrompt(for job: TranslationJob) -> String {
+        let glossary = job.glossary.isEmpty ? "(empty)" : job.glossary
+        let style = job.style.styleInstruction
+        return """
+        \(style)
+
+        Target language for the expanded prompt: \(job.targetLanguage) (\(LanguageCatalog.englishName(for: job.targetLanguage)))
+        Glossary:
+        \(glossary)
+
+        Text to expand into a complete prompt:
+        \(job.text)
+        """
     }
 
     private static func translateUserPrompt(for job: TranslationJob) -> String {

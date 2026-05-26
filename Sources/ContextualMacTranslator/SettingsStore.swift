@@ -232,6 +232,19 @@ final class SettingsStore {
         }
     }
 
+    /// v0.11.0 — Prompt Engineer mode bindings. Each entry = (name +
+    /// hotkey + target language + style instruction). Sends through the
+    /// translate provider with `direction = .expand`, which the SaaS
+    /// Supabase Edge Function routes to EXPAND_SYSTEM_PROMPT at
+    /// temperature 0.6. Defaults to empty — like rewriteBindings, this
+    /// needs a hotkey the user explicitly assigns. See `PromptBinding`.
+    var promptBindings: [PromptBinding] {
+        didSet {
+            guard promptBindings != oldValue else { return }
+            persist(promptBindings, forKey: Keys.promptBindings)
+        }
+    }
+
     /// Single global hotkey that opens the tone picker (v0.8). `nil` means
     /// the picker is disabled — the user explicitly assigns it in Settings.
     var pickerHotkey: HotkeyConfig? {
@@ -384,6 +397,9 @@ final class SettingsStore {
         static let outboundBindings = "translator.outboundBindings"
         // v0.7 contextual rewrite
         static let rewriteBindings = "translator.rewriteBindings"
+        // v0.11.0 — Prompt Engineer mode bindings (separate from
+        // rewriteBindings because the data shape + UX differ).
+        static let promptBindings = "translator.promptBindings"
         // v0.8 tone picker hotkey
         static let pickerHotkey = "translator.pickerHotkey"
         static let captureHotkey = "translator.captureHotkey"
@@ -520,6 +536,8 @@ final class SettingsStore {
             ?? [.defaultJapaneseFormal, .defaultJapaneseCasual]
         rewriteBindings = Self.loadCodable([RewriteBinding].self, defaults: defaults, key: Keys.rewriteBindings)
             ?? []
+        promptBindings = Self.loadCodable([PromptBinding].self, defaults: defaults, key: Keys.promptBindings)
+            ?? []
         pickerHotkey = Self.loadCodable(HotkeyConfig.self, defaults: defaults, key: Keys.pickerHotkey)
         captureHotkey = Self.loadCodable(HotkeyConfig.self, defaults: defaults, key: Keys.captureHotkey)
         lastShownWhatsNewVersion = defaults.string(forKey: Keys.lastShownWhatsNewVersion) ?? ""
@@ -600,6 +618,14 @@ final class SettingsStore {
         for binding in rewriteBindings where binding.id != excludeID {
             if binding.hotkey == hotkey {
                 return binding.displayName
+            }
+        }
+        // v0.11.0 — promptBindings join the conflict-detection sweep so
+        // the HotkeyRecorder warns when a chosen hotkey is already
+        // wired to a Prompt Engineer expansion.
+        for binding in promptBindings where binding.id != excludeID {
+            if binding.hotkey == hotkey {
+                return binding.name
             }
         }
         if let pickerHotkey, pickerHotkey == hotkey {

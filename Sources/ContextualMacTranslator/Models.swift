@@ -7,6 +7,12 @@ enum TranslationDirection: String, Codable, Sendable {
     /// Same-language tone rewrite — not a translation. The provider keeps
     /// the input language and only changes tone/delivery. See `RewriteBinding`.
     case rewrite
+    /// v0.11.0 — Prompt Engineer mode. Cross-language expansion of a
+    /// minimal keyword sketch into a complete prompt for AI coding
+    /// assistants (Claude Code, Codex, ChatGPT, Claude Desktop). See
+    /// `PromptBinding`. The Supabase backend routes this direction to
+    /// EXPAND_SYSTEM_PROMPT with temperature 0.6.
+    case expand
 }
 
 /// Formality level / register applied to outbound translations. The
@@ -205,12 +211,15 @@ struct TranslationStyle: Codable, Equatable, Hashable, Sendable {
             return lang
         case .rewrite:
             return "Rewrite"
+        case .expand:
+            return "Prompt expand"
         }
     }
 
     /// Short badge for the HUD persona indicator.
     var displayBadge: String {
         if direction == .rewrite { return "✎" }
+        if direction == .expand { return "✦" }
         switch (targetLanguage, register, direction) {
         case ("ja", .formal, .outbound): return "敬語"
         case ("ja", .casual, .outbound): return "カジュアル"

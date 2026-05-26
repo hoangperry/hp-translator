@@ -435,6 +435,108 @@ final class TranslationWorkflow {
         hudController.showResult("Sent \(style.displayName)", persona: style)
     }
 
+    // MARK: - Prompt Engineer (expand — v0.11.0)
+
+    /// Capture the current input line, send through the translate
+    /// provider with `direction = .expand` (which the SaaS Supabase
+    /// Edge Function routes to EXPAND_SYSTEM_PROMPT @ temp 0.6), then
+    /// paste the expanded prompt back. Same hotkey UX shape as
+    /// translate/rewrite — the user types a minimal Vietnamese keyword
+    /// sketch, presses the bound hotkey, and a complete English prompt
+    /// for AI coding assistants replaces the line.
+    ///
+    /// Reuses the `rewriteAvailableProvider` gate: the same backend
+    /// modes that expose rewrite also expose expand (both ride the
+    /// same provider machinery). Older self-hosted FastAPI without
+    /// `direction = "expand"` handling will fall through to translate
+    /// mode — degraded, not crashed.
+    func expandAndSend(binding: PromptBinding) async {
+        guard rewriteAvailableProvider() else {
+            hudController.showError(
+                "Prompt expansion needs an LLM provider (Gemini, Ollama, OpenAI-compatible, or Contextual MT backend). DeepL and Google Translate cannot expand prompts."
+            )
+            return
+        }
+        let translator = providerFactory()
+        guard translator.isConfigured else {
+            hudController.showError(TranslationError.missingEndpoint.localizedDescription)
+            return
+        }
+
+        let style = stamp(binding.style(), with: translator)
+        focusGuard.capture()
+
+        hudController.showLoading("Expanding prompt...", persona: style)
+        let snapshot = pasteboard.capture()
+        let previousChangeCount = pasteboard.changeCount
+
+        await keyboard.selectCurrentLineToBeginning()
+        guard await isFocusStillAllowed() else {
+            pasteboard.restore(snapshot)
+            hudController.showError(TranslationError.focusChangedBeforePaste.localizedDescription)
+            return
+        }
+        await keyboard.copySelection()
+
+        guard let sourceText = await pasteboard.waitForCopiedString(after: previousChangeCount)?.trimmedNonEmpty else {
+            pasteboard.restore(snapshot)
+            hudController.showError(TranslationError.emptyClipboard.localizedDescription)
+            return
+        }
+
+        let expanded: String
+        do {
+            let result = try await translator.translate(TranslationJob(
+                text: sourceText,
+                style: style,
+                sourceLanguage: primaryLanguageProvider(),
+                glossary: glossaryProvider()
+            ))
+            expanded = result.translation
+        } catch {
+            pasteboard.restore(snapshot)
+            hudController.showError(error.localizedDescription)
+            return
+        }
+
+        // Always preview — an expanded prompt is N× longer than the
+        // input keywords, the user must skim it before it lands in a
+        // coding assistant's chat box.
+        hudController.dismiss()
+        let decision = await previewPresenter.presentPreview(
+            original: sourceText,
+            translated: expanded,
+            persona: style,
+            isSourceFocused: { [weak self] in
+                guard let self else { return false }
+                guard self.focusGuardEnabledProvider() else { return true }
+                return self.focusGuard.isStillFocused()
+            }
+        )
+
+        let textToSend: String
+        switch decision {
+        case .send(let confirmed):
+            textToSend = confirmed
+        case .cancel:
+            pasteboard.restore(snapshot)
+            hudController.showResult("Cancelled — original keywords kept", persona: style)
+            return
+        }
+
+        guard await isFocusStillAllowed() else {
+            pasteboard.restore(snapshot)
+            hudController.showError(TranslationError.focusChangedBeforePaste.localizedDescription)
+            return
+        }
+
+        pasteboard.writeString(textToSend)
+        await keyboard.paste()
+        // Same delayed clipboard restore reasoning as rewriteAndSend.
+        restoreClipboard(snapshot)
+        hudController.showResult("Expanded prompt pasted", persona: style)
+    }
+
     // MARK: - Headless (App Intents — v0.9.0)
     //
     // These three façade methods preserve the public contract of the

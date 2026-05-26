@@ -187,6 +187,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             _ = settings.inboundBinding
             _ = settings.outboundBindings
             _ = settings.rewriteBindings
+            // v0.11.0 — Prompt Engineer bindings re-register on the
+            // same observation tick as rewriteBindings so adding a new
+            // binding in Settings lights the hotkey up immediately.
+            _ = settings.promptBindings
             _ = settings.pickerHotkey
             _ = settings.captureHotkey
             // Provider/source changes also affect whether rewrite hotkeys
@@ -246,6 +250,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 )
             }
             outbound.append(contentsOf: rewriteEntries)
+
+            // v0.11.0 — Prompt Engineer bindings register on the same
+            // gate as rewrite (both ride the same backend provider
+            // machinery; both need an LLM-class provider). Each binding
+            // fires `expandAndSend` which sends `direction = .expand`
+            // through to the SaaS Edge Function's EXPAND_SYSTEM_PROMPT
+            // route.
+            let promptEntries = settings.promptBindings.map { binding -> (config: HotkeyConfig, action: @MainActor () -> Void) in
+                (
+                    config: binding.hotkey,
+                    action: { [weak self] in
+                        Task { @MainActor in
+                            await self?.workflow.expandAndSend(binding: binding)
+                        }
+                    }
+                )
+            }
+            outbound.append(contentsOf: promptEntries)
 
             // Tone picker hotkey (v0.8) — re-press while the picker is
             // already on screen toggles it closed instead of capturing a
