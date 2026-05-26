@@ -14,6 +14,58 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.10.6] — 2026-05-27
+
+**Rewrite works on SaaS backend.** User-reported bug: pressing a tone
+rewrite hotkey (Polite / Professional / Friendly etc.) did nothing
+when the app was configured to use Contextual MT Cloud or a self-hosted
+backend. The hotkey registration was silently skipped because the
+historical `rewriteAvailable` gate hardcoded "only direct-API providers
+can rewrite".
+
+### Fixed — `rewriteAvailable` unblocks backend modes
+
+- `SettingsStore.rewriteAvailable` now returns `true` for both
+  `customBackend` and `firstPartyBackend` translation sources. Direct
+  API providers stay gated on each provider's individual
+  `supportsRewrite` flag.
+
+### Added — Backend rewrite mode (server-side, already deployed)
+
+- The Supabase `translate` Edge Function now accepts a
+  `direction: "translate" | "rewrite"` field. When set to `"rewrite"`,
+  the Gemini provider swaps to a same-language tone-rewrite system
+  prompt and the user prompt drops Source/Target language lines that
+  would otherwise confuse the model into translating instead of
+  adjusting tone.
+- Any other `direction` value (including missing) is treated as a
+  regular translate — backward-compatible with v0.10.0–v0.10.5
+  clients still in the wild.
+- Cache key now includes `direction` so a translate-of-X never
+  returns a previously-cached rewrite-of-X (or vice versa).
+- The Mac app's `BackendRequestBody.encode(to:)` already emits a
+  `direction` field for every request (raw value from
+  `TranslationDirection`), so no client wire change beyond unblocking
+  the gate.
+
+### Tests
+
+- `RewriteModelsTests.rewriteAvailability` updated to assert the new
+  contract: backend modes return true; direct API stays per-provider.
+- `PermissionManagerTests`: refactored the v0.10.4 auto-open Settings
+  tests to drive the decision synchronously via a new
+  `checkAutoOpenSettings()` method instead of racing the cooperative
+  scheduler. The production code still schedules the grace task; the
+  tests just exercise its decision body deterministically.
+- 390 tests pass (was 390; no count change).
+
+### Risk-free upgrade
+
+UserDefaults + Keychain layout unchanged from v0.10.5. Older Mac app
+builds on the SaaS backend will continue to get translate-only
+behaviour (rewrite hotkeys were never registered, so they were never
+calling into the backend in rewrite mode anyway).
+
 ## [0.10.5] — 2026-05-27
 
 **Window chrome hotfix.** Three app windows (Onboarding, Settings,
