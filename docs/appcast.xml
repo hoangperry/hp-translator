@@ -8,6 +8,29 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v1.0.0</title>
+      <pubDate>Wed, 27 May 2026 05:00:00 +0700</pubDate>
+      <description><![CDATA[
+        <h2>First stable release</h2>
+        <p>v1.0.0 is a commitment to API + UX stability, not a re-implementation. Bundle is byte-identical in behaviour to v0.11.1 — same code path, same backend wire format, same prompts, same hotkey UX. The 1.0.0 number marks the boundary where:</p>
+        <ul>
+          <li><strong>Feature set is complete</strong> for the workflows the app was built for: inbound translate, outbound translate (per-persona), contextual rewrite (per-tone), tone picker, OCR capture, App Intents (Shortcuts.app + Spotlight + Siri), Prompt Engineer mode.</li>
+          <li><strong>Dual-mode translation backend</strong>: bring-your-own-API direct providers (Gemini, OpenAI-compatible, Ollama, DeepL, Google Translate, LibreTranslate) and SaaS-hosted Contextual MT Cloud with quota / device cap / per-user encrypted cache.</li>
+          <li><strong>Distribution pipeline is hardened end-to-end</strong>: Apple Developer-ID signed, Apple-notarized, stapled, AppleDouble-clean ZIP + DMG, Sparkle EdDSA auto-update, GitHub Pages workflow deploy for the appcast.</li>
+          <li><strong>400 tests</strong> guard the public contract.</li>
+        </ul>
+        <p>From v1.0.0 onwards: feature additions land as minor bumps (1.1.0 …), bug fixes as patch bumps (1.0.1 …). On-disk layout (UserDefaults + Keychain) and backend wire format are now considered stable surface area; any breaking change earns a major bump (2.0.0).</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v1.0.0">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v1.0.0/Contextual-Mac-Translator-v1.0.0-macos-arm64.zip"
+        sparkle:version="38"
+        sparkle:shortVersionString="1.0.0"
+        sparkle:edSignature="3uE3AMAcgre25Let5kBKcn+LdNxHO8Xm+PTENStCIMxhkfk83v87WHuBTyRdvYgKcm3n5s1ftxuv5Za4UyzxCw==" length="2147244"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.11.1</title>
       <pubDate>Wed, 27 May 2026 04:30:00 +0700</pubDate>
       <description><![CDATA[
