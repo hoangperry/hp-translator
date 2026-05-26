@@ -14,6 +14,49 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [1.0.0] — 2026-05-27
+
+**First stable release.** v1.0.0 is a commitment to API + UX
+stability, not a re-implementation. The bundle is byte-identical in
+behaviour to v0.11.1 — same code path, same backend wire format, same
+prompts, same hotkey UX. The 1.0.0 number marks the boundary where:
+
+- The feature set covers every workflow the app was built for:
+  inbound translate, outbound translate (per-persona), contextual
+  rewrite (per-tone), tone picker, OCR capture, App Intents
+  (Shortcuts.app + Spotlight + Siri), Prompt Engineer mode.
+- The translation backend is dual-mode: bring-your-own-API direct
+  providers (Gemini, OpenAI-compatible, Ollama, DeepL, Google
+  Translate, LibreTranslate) and the SaaS-hosted Contextual MT Cloud
+  with quota / device cap / per-user encrypted cache.
+- The distribution pipeline is hardened end-to-end: Apple
+  Developer-ID signed, Apple-notarized, stapled, AppleDouble-clean
+  ZIP + DMG, Sparkle EdDSA auto-update, GitHub Pages workflow
+  deploy for the appcast.
+- The Mac app reliably round-trips its persistent state (UserDefaults
+  + Keychain) across upgrades, including the v0.10.2 auto-recovery
+  flow when macOS TCC resets Accessibility.
+- 400 tests guard the contract.
+
+### No behaviour changes vs v0.11.1
+
+Just the version string + this entry. v0.11.0 → v0.11.1 → v1.0.0
+upgrade is the cheapest in the app's history.
+
+### What 1.0.0 means for the project
+
+- Feature additions land as **minor** version bumps (1.1.0, 1.2.0, …).
+- Bug fixes land as **patch** bumps (1.0.1, 1.0.2, …).
+- The on-disk layout (UserDefaults keys, Keychain accounts, file
+  names, signing identifiers) and the backend wire format
+  (`direction` field values, dual-emit body shape, snake_case +
+  camelCase parity) are now considered stable surface area; any
+  breaking change earns a **major** bump (2.0.0).
+
+### Risk-free upgrade
+
+UserDefaults + Keychain layout unchanged from v0.11.1.
+
 ## [0.11.1] — 2026-05-27
 
 **Rewrite pronoun-preservation hotfix.** User-reported bug: a draft
