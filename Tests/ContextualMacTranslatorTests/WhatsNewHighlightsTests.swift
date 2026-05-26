@@ -29,7 +29,10 @@ struct WhatsNewHighlightsTests {
         // all funnel into the default branch. AppDelegate uses `nil` as
         // the gate that means 'silently mark this version seen without
         // popping a window' — verify the catch-all stays catch-all.
-        for version in ["0.8.5", "0.9.1", "0.10.0", "1.0.0", "0.0.0", ""] {
+        // v0.10.0 itself is now a known version (Cultural Precision &
+        // Privacy release added a dedicated highlight set), so it is
+        // intentionally excluded from this catch-all sweep.
+        for version in ["0.8.5", "0.9.1", "0.10.1", "1.0.0", "0.0.0", ""] {
             #expect(
                 WhatsNewWindowController.highlights(for: version) == nil,
                 "Expected nil for version '\(version)'"
