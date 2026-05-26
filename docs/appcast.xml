@@ -8,6 +8,29 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.10.2</title>
+      <pubDate>Tue, 26 May 2026 18:24:00 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Permission UX &amp; TCC stability</h2>
+        <p>A user-reported pain point: every Sparkle upgrade felt like macOS was clearing the app's Accessibility grant — translate hotkeys went silent until you manually re-granted, with no in-app surface telling you what happened. v0.10.2 fixes the experience and hardens the signature so the underlying TCC issue is much less likely to recur.</p>
+        <ul>
+          <li><strong>Auto-recovery onboarding</strong> — on launch, the app detects when Accessibility was previously granted but is no longer active (a TCC reset signal). When detected, the onboarding panel pops automatically with copy that acknowledges you already did this once.</li>
+          <li><strong>Codesign hardening</strong> — <code>--identifier</code> is now passed explicitly to <code>codesign</code> so the designated requirement TCC keys on is byte-stable across releases. Verified: v0.10.0, v0.10.1, and v0.10.2 all sign with byte-identical designated requirements.</li>
+          <li><strong>Faster grant detection</strong> — the post-request settle delay bumps 1s → 2s so the system prompt's "Allow" click registers reliably without needing the onboarding window's polling loop to catch up.</li>
+        </ul>
+        <p>11 new tests pin the recovery decision tree + PermissionManager grant-sync behaviour. 388 tests pass total.</p>
+        <p>UserDefaults layout stays compatible — one new key (<code>translator.lastKnownAccessibilityGranted</code>) defaults to <code>false</code> on existing installs so the recovery flow does not fire spuriously on the v0.10.1 → v0.10.2 upgrade itself.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.10.2">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.10.2/Contextual-Mac-Translator-v0.10.2-macos-arm64.zip"
+        sparkle:version="31"
+        sparkle:shortVersionString="0.10.2"
+        sparkle:edSignature="PgX258u5mY9aE9xQf4x48LOxgWHNQa9b1Dix9ZffPjDojkuUcH/v6ixQuiN+Zdc45RMKZImnfCPILZtIfLYYBg==" length="2188792"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.10.1</title>
       <pubDate>Tue, 26 May 2026 17:46:00 +0700</pubDate>
       <description><![CDATA[
