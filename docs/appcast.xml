@@ -8,6 +8,28 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.11.0</title>
+      <pubDate>Wed, 27 May 2026 04:00:00 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Prompt Engineer mode</h2>
+        <p>Type a minimal Vietnamese keyword sketch of a coding task, press a hotkey, and the app pastes back a complete, well-structured English prompt for Claude Code, Codex, ChatGPT, or Claude Desktop. Same hotkey machinery as translate/rewrite, with a dedicated server prompt + temperature tuned for expansion.</p>
+        <ul>
+          <li><strong>Settings → Prompt Engineer</strong> — new section with per-binding rows: name, target language, optional custom expansion guidelines, hotkey recorder.</li>
+          <li><strong><code>TranslationDirection.expand</code> + <code>PromptBinding</code></strong> — new data types; persist under <code>translator.promptBindings</code>.</li>
+          <li><strong>Dedicated system prompt + temperature 0.6</strong> — Supabase Edge Function (already deployed) routes <code>direction: "expand"</code> to EXPAND_SYSTEM_PROMPT; direct-API providers get the matching prompt via PromptBuilder.</li>
+        </ul>
+        <p>400 tests pass (+10 new). UserDefaults adds one new key (promptBindings) defaulting to empty; users opt in by adding a binding.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.11.0">release notes</a> on GitHub or the recipe at <a href="https://contextmt.dev/recipes/prompt-expander">contextmt.dev/recipes/prompt-expander</a>.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.11.0/Contextual-Mac-Translator-v0.11.0-macos-arm64.zip"
+        sparkle:version="36"
+        sparkle:shortVersionString="0.11.0"
+        sparkle:edSignature="dIv6afkrhK9bD1K3WK+5RoasnTlbm6oqb6MhPH8F1UONSyT78UJVngqHrV1JtB01lVMlfD431cMJBidcgJrmCg==" length="2146546"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.10.6</title>
       <pubDate>Wed, 27 May 2026 03:08:00 +0700</pubDate>
       <description><![CDATA[
