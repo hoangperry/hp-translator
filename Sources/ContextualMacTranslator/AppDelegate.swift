@@ -9,7 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeysRegistered = false
     private var isObservingBindings = false
 
-    private lazy var permissionManager = PermissionManager()
+    private lazy var permissionManager = PermissionManager(settings: .shared)
     private lazy var hudController = HUDController()
     private lazy var previewHUDController = PreviewHUDController()
     // v0.8.4 — eager (not lazy) so the NSPanel is constructed at app
@@ -47,16 +47,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // background scheduler starts. Initial check is deferred by
         // Sparkle's own logic (it won't fire immediately on first launch).
         _ = updaterManager
-        if SettingsStore.shared.firstRunCompleted {
+        // v0.10.2 — recovery detection. Read the previously-persisted
+        // grant state BEFORE permissionManager.refresh() rewrites it, so
+        // we can detect the true→false transition that signals macOS
+        // reset our Accessibility grant during a Sparkle upgrade (or any
+        // other TCC event). The lazy `permissionManager` getter probes
+        // the live state on first access but does NOT touch the
+        // persisted record — only refresh() does. That lets the next two
+        // lines see "previously granted" cleanly.
+        let previouslyGranted = SettingsStore.shared.lastKnownAccessibilityGranted
+        let currentlyGranted = permissionManager.accessibilityGranted
+        let permissionLost = SettingsStore.shared.firstRunCompleted
+            && previouslyGranted
+            && !currentlyGranted
+        permissionManager.refresh()   // syncs the persisted record forward
+
+        if !SettingsStore.shared.firstRunCompleted {
+            showOnboarding(mode: .firstRun)
+        } else if permissionLost {
+            // Register hotkeys anyway — the user might have other
+            // grants (Input Monitoring) and the hotkey infrastructure
+            // is harmless without Accessibility. The recovery onboarding
+            // pops on top so the issue is impossible to miss.
             registerHotKeys()
+            showOnboarding(mode: .permissionRecovery)
         } else {
-            showOnboarding()
+            registerHotKeys()
         }
         // v0.9.0 — show the What's-New window on a fresh minor/major.
         // Deferred slightly so it doesn't trample the onboarding flow
-        // (which only fires when firstRunCompleted is false, so this is
-        // belt-and-braces — both can't fire on the same launch anyway).
-        if SettingsStore.shared.firstRunCompleted {
+        // (first-run or recovery — both suppress What's-New so the user
+        // sees one window at a time, not three).
+        if SettingsStore.shared.firstRunCompleted && !permissionLost {
             maybeShowWhatsNew()
         }
     }
@@ -256,13 +278,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeysRegistered = true
     }
 
-    private func showOnboarding() {
+    private func showOnboarding(mode: OnboardingMode = .firstRun) {
         if onboardingWindowController == nil {
             onboardingWindowController = OnboardingWindowController(
                 permissionManager: permissionManager,
+                mode: mode,
                 onContinue: { [weak self] in
                     SettingsStore.shared.firstRunCompleted = true
                     self?.onboardingWindowController?.close()
+                    self?.onboardingWindowController = nil
                     self?.registerHotKeys()
                 }
             )

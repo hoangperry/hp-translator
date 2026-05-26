@@ -177,6 +177,22 @@ final class SettingsStore {
         }
     }
 
+    /// v0.10.2 — last-known Accessibility grant state, persisted across
+    /// launches. The AppDelegate compares `lastKnownAccessibilityGranted`
+    /// to the live `AXIsProcessTrusted()` reading on launch; if the
+    /// previous session saw `true` and the current one sees `false`
+    /// (e.g. macOS reset TCC after a Sparkle upgrade), the recovery
+    /// onboarding panel pops automatically instead of leaving the user
+    /// with silently-broken hotkeys. PermissionManager.refresh() writes
+    /// back here whenever the live grant changes so the signal stays
+    /// current across the session.
+    var lastKnownAccessibilityGranted: Bool {
+        didSet {
+            guard lastKnownAccessibilityGranted != oldValue else { return }
+            defaults.set(lastKnownAccessibilityGranted, forKey: Keys.lastKnownAccessibilityGranted)
+        }
+    }
+
     // MARK: Multi-language (v0.3 / Phase 8)
 
     /// User's primary readable language (BCP47). Inbound translations
@@ -360,6 +376,8 @@ final class SettingsStore {
         static let glossary = "translator.glossary"
         static let focusGuardEnabled = "translator.focusGuardEnabled"
         static let firstRunCompleted = "translator.firstRunCompleted"
+        // v0.10.2 — permission loss recovery detection
+        static let lastKnownAccessibilityGranted = "translator.lastKnownAccessibilityGranted"
         // v0.3 multi-lang
         static let primaryLanguage = "translator.primaryLanguage"
         static let inboundBinding = "translator.inboundBinding"
@@ -492,6 +510,7 @@ final class SettingsStore {
         }
         focusGuardEnabled = defaults.object(forKey: Keys.focusGuardEnabled) as? Bool ?? true
         firstRunCompleted = defaults.bool(forKey: Keys.firstRunCompleted)
+        lastKnownAccessibilityGranted = defaults.bool(forKey: Keys.lastKnownAccessibilityGranted)
 
         // v0.3 multi-lang — back-compat defaults match v0.2 hardcoded behaviour
         primaryLanguage = defaults.string(forKey: Keys.primaryLanguage) ?? "vi"

@@ -1,12 +1,31 @@
 import AppKit
 import SwiftUI
 
+/// v0.10.2 — distinguishes the truly-first-launch flow (user has never
+/// seen the permission helper) from the recovery flow (Accessibility
+/// was previously granted but macOS reset it during a Sparkle upgrade
+/// or some other TCC event). The two cases need different copy: the
+/// recovery card has to acknowledge that the user already did this
+/// once and explain why they're seeing it again.
+enum OnboardingMode: Sendable {
+    case firstRun
+    case permissionRecovery
+}
+
 @MainActor
 final class OnboardingWindowController {
     private let window: NSWindow
 
-    init(permissionManager: PermissionManager, onContinue: @escaping @MainActor () -> Void) {
-        let view = OnboardingView(permissionManager: permissionManager, onContinue: onContinue)
+    init(
+        permissionManager: PermissionManager,
+        mode: OnboardingMode = .firstRun,
+        onContinue: @escaping @MainActor () -> Void
+    ) {
+        let view = OnboardingView(
+            permissionManager: permissionManager,
+            mode: mode,
+            onContinue: onContinue
+        )
         let controller = NSHostingController(rootView: view)
         window = NSWindow(contentViewController: controller)
         window.title = "Contextual Mac Translator"
@@ -33,18 +52,35 @@ final class OnboardingWindowController {
 
 private struct OnboardingView: View {
     var permissionManager: PermissionManager
+    let mode: OnboardingMode
     let onContinue: @MainActor () -> Void
 
     private var isInApplicationsFolder: Bool {
         Bundle.main.bundleURL.path.hasPrefix("/Applications/")
     }
 
+    private var headline: String {
+        switch mode {
+        case .firstRun: return "First Launch Setup"
+        case .permissionRecovery: return "Permissions Need Re-Granting"
+        }
+    }
+
+    private var subhead: String {
+        switch mode {
+        case .firstRun:
+            return "Grant Accessibility so the app can copy selected text, paste translations, and press Return in the target app."
+        case .permissionRecovery:
+            return "Welcome back. macOS cleared the app's Accessibility grant after the recent update — translate hotkeys are silent until you re-grant. Click Request below, or Open Settings if the prompt does not appear."
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("First Launch Setup")
+                Text(headline)
                     .font(.title2.bold())
-                Text("Grant Accessibility so the app can copy selected text, paste translations, and press Return in the target app.")
+                Text(subhead)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
