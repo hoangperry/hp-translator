@@ -14,6 +14,35 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.10.5] — 2026-05-27
+
+**Window chrome hotfix.** Three app windows (Onboarding, Settings,
+What's New) were configured with
+`titlebarAppearsTransparent = true` + `backgroundColor = .clear` +
+`isOpaque = false` from an earlier macOS 26 "Liquid Glass" experiment.
+On real macOS the combination renders the window title text directly
+onto the desktop wallpaper with zero contrast — the user-visible
+symptom was an overlapping unreadable title bar.
+
+### Fixed
+
+- **OnboardingWindowController**, **SettingsWindowController**,
+  **WhatsNewWindowController** — reverted the transparent-titlebar /
+  clear-background settings. Standard opaque titlebar restored on all
+  three windows. The SwiftUI content's `liquidGlassBackground`
+  modifier still applies its material to the content area; only the
+  titlebar chrome changes.
+
+### Tests
+
+- Bumped two PermissionManager test sleeps 2s → 3s to absorb scheduler
+  jitter and stop intermittent flakes on the auto-open-Settings
+  contract added in v0.10.4. 390 tests pass.
+
+### Risk-free upgrade
+
+UserDefaults + Keychain layout unchanged from v0.10.4.
+
 ## [0.10.4] — 2026-05-27
 
 **Permission UX cleanup.** Drops Input Monitoring from the onboarding
