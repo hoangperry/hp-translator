@@ -14,6 +14,78 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.10.2] — 2026-05-26
+
+**Permission UX & TCC stability.** A user-reported pain point: every
+Sparkle upgrade felt like macOS was clearing the app's Accessibility
+grant — translate hotkeys went silent until they manually re-granted,
+and there was no in-app surface telling them what happened. v0.10.2
+adds an auto-recovery onboarding panel that pops automatically when
+the launch-time grant check finds a true→false transition, plus a
+defensive codesign hardening so the designated requirement TCC keys
+on cannot drift between releases.
+
+### Added — Auto-recovery onboarding
+
+- **Permission-loss detection on launch** — `AppDelegate` reads the
+  persisted `lastKnownAccessibilityGranted` flag BEFORE calling
+  `permissionManager.refresh()`, so the true→false transition that
+  signals a TCC reset is detectable. When detected, the onboarding
+  window pops in **`.permissionRecovery` mode** with copy that
+  acknowledges the user already did this once.
+- **`OnboardingMode` enum** (`.firstRun` / `.permissionRecovery`)
+  threads through `OnboardingWindowController` and `OnboardingView`
+  so the title and intro text adapt to the situation. Recovery mode
+  reads: *"Welcome back. macOS cleared the app's Accessibility grant
+  after the recent update — translate hotkeys are silent until you
+  re-grant."*
+- **Hotkey registration still runs** in recovery mode so any grants
+  that survived (e.g. Input Monitoring) keep working — the onboarding
+  pops on top so the issue cannot be missed.
+
+### Internal — `PermissionManager` testability
+
+- Constructor accepts injected `accessibilityProbe` /
+  `inputMonitoringProbe` / `requestAccessibilityAction` /
+  `requestInputMonitoringAction` closures so unit tests can exercise
+  the grant-sync wiring without touching the real TCC database.
+- `refresh()` writes the live grant back to
+  `SettingsStore.lastKnownAccessibilityGranted` (guarded by `didSet`
+  so the 1-second OnboardingView polling loop does not spam
+  UserDefaults).
+- `refreshLater()` post-request sleep bumped 1s → 2s — gives the TCC
+  database room to settle after the user clicks "Allow" in the system
+  prompt (the OnboardingView polling loop runs in parallel as
+  belt-and-braces).
+
+### Internal — Codesign stability hardening
+
+- `scripts/package_app.sh` now passes
+  `--identifier "app.lookerlab.translator"` explicitly to the main-app
+  `codesign` call instead of letting it infer from
+  `CFBundleIdentifier`. The value baked into the signature is now
+  byte-stable across releases; v0.10.0 and v0.10.1 already had
+  identical designated requirements (verified post-ship) but explicit
+  is defensive against tool-version drift.
+
+### Tests
+
+- New `PermissionManagerTests` suite (6 tests) covers grant-sync
+  behavior, init non-mutation guarantee, request-action firing, and
+  nil-settings path.
+- New `LaunchRecoveryDecisionTreeTests` suite (5 tests) pins the
+  3-input decision tree used by AppDelegate (fresh install / steady
+  state / revoked / never-granted / lost-then-regranted).
+- Full suite stays GREEN at 388 tests (377 → 388; +11 new).
+
+### Risk-free upgrade
+
+UserDefaults adds one new key (`translator.lastKnownAccessibilityGranted`)
+that defaults to `false` on existing installs — so the recovery
+flow won't fire spuriously on the v0.10.1 → v0.10.2 upgrade itself.
+First refresh writes the current live state forward; from v0.10.3
+onwards the recovery signal is armed.
+
 ## [0.10.1] — 2026-05-26
 
 **SaaS backend wire-format hotfix.** v0.10.0 shipped right as the
