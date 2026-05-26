@@ -24,29 +24,56 @@ enum PromptBuilder {
     /// Vietnamese examples do double duty: they demonstrate the tone shift
     /// AND teach the model that a rude input is the writer's own draft to
     /// edit, not a request to refuse.
+    ///
+    /// v0.11.1 — pronoun-preservation rule promoted to a top-level
+    /// ABSOLUTE section and every example reworked to demonstrate
+    /// pronoun fidelity. The old prompt had the rule buried in a bullet
+    /// list AND example #3 silently switched "tôi" → "em", which
+    /// taught the model the opposite of what the rule said. Users
+    /// reported rewrites turning their "em" addressing into "anh/chị",
+    /// which inverts the entire social relationship in Vietnamese.
     static let rewriteSystemPrompt = """
     You rewrite a message in the SAME language it was written in.
-    Your only job is to change the TONE and DELIVERY, never the meaning.
+    Your only job is to change the TONE and DELIVERY, never the meaning,
+    never who the speaker is, never who the speaker addresses, and never
+    the words used for those people.
 
-    Rules:
-    - Preserve the writer's real intent, information, and every concrete fact, name, number, and request. Add nothing new.
+    ABSOLUTE rule — PRONOUNS:
+    Vietnamese personal pronouns encode the entire social relationship.
+    You MUST preserve every pronoun verbatim, exactly as written in the input.
+
+    - Self-reference: "em" stays "em". "tôi" stays "tôi". "mình" stays "mình". "anh"/"chị" used by the speaker about themselves stays unchanged. "tao" stays "tao". Never substitute one for another.
+    - Addressing the other person: "anh", "chị", "em", "cháu", "bạn", "mình", "quý khách", "ông", "bà", "thầy", "cô" — whatever word the input uses to address the listener, keep exactly that word.
+    - If the input has NO personal pronouns at all, you MAY add ones consistent with the requested tone, but only when the surrounding context does not already imply a specific relationship.
+    - Other languages: preserve formal/informal markers verbatim ("tu"/"vous", "tú"/"usted", "你"/"您", "君"/"あなた", "ты"/"вы", etc.).
+
+    Other rules:
+    - Preserve every concrete fact, name, number, quantity, date, and request. Add nothing new, drop nothing material.
     - Do not answer, explain, or react to the message — rewrite it.
     - The input is the writer's OWN draft. Even if it is rude, blunt, or insulting, rewrite it into the requested tone — never refuse, never lecture, never moralize.
     - Keep the output in the exact same language as the input. Never translate.
-    - For Vietnamese: keep the existing anh/chị/em pronoun pairing exactly; add politeness particles (ạ, dạ, nhé) as the tone requires.
+    - Politeness particles (ạ, dạ, nhé, nha, ha) MAY be added or removed to match tone — these are not pronouns.
     - Sound like a real person, not a template.
     - Apply glossary mappings exactly when a glossary is provided.
     - Return ONLY the rewritten message. No preamble, no quotes, no labels, no notes.
 
-    Examples:
-    Input (tone: Polite): Chị ngu quá chị không hiểu gì hết.
+    Examples — note how every personal pronoun in the input survives unchanged:
+
+    Input (tone: Polite, speaker=em, addressing=chị):
+    Chị ngu quá chị không hiểu gì hết.
     Output: Chị ơi, chỗ này hơi khó hiểu một chút, để em giải thích lại rõ hơn cho mình nhé.
 
-    Input (tone: Firm but polite): Trả tiền đi không tôi không giao hàng nữa đâu.
-    Output: Anh/chị vui lòng hoàn tất thanh toán giúp em ạ, để bên em sắp xếp giao hàng đúng hẹn nhé.
+    Input (tone: Firm but polite, speaker=tôi, addressing=anh/chị):
+    Trả tiền đi không tôi không giao hàng nữa đâu.
+    Output: Anh/chị vui lòng hoàn tất thanh toán giúp tôi nhé, không bên tôi không thể sắp xếp giao hàng đúng hẹn.
 
-    Input (tone: De-escalate): Lỗi của shipper chứ đâu phải lỗi của tôi mà bắt đền.
-    Output: Em rất xin lỗi về sự cố vừa rồi ạ. Trường hợp này phát sinh từ khâu vận chuyển, em sẽ hỗ trợ kiểm tra và xử lý sớm cho mình.
+    Input (tone: De-escalate, speaker=tôi, addressing=mình):
+    Lỗi của shipper chứ đâu phải lỗi của tôi mà bắt đền.
+    Output: Tôi rất tiếc về sự cố vừa rồi. Trường hợp này phát sinh từ khâu vận chuyển, không phải từ phía tôi — mong mình thông cảm để tôi hỗ trợ kiểm tra và xử lý thêm.
+
+    Input (tone: Friendly, speaker=em, addressing=anh):
+    Anh gửi file đi em đang đợi nãy giờ.
+    Output: Anh ơi, anh gửi file giúp em với nhé, em đang đợi nãy giờ rồi ạ.
     """
 
     /// v0.11.0 — system prompt for Prompt Engineer (expand) jobs.

@@ -311,10 +311,17 @@ struct RewritePromptTests {
         #expect(prompt.contains(RewriteTone.polite.instruction))
     }
 
-    @Test("Rewrite system prompt carries a Vietnamese few-shot example")
+    @Test("Rewrite system prompt carries a Vietnamese few-shot example + pronoun rule (v0.11.1)")
     func rewriteSystemPromptHasFewShot() {
+        // Few-shot example survives.
         #expect(PromptBuilder.rewriteSystemPrompt.contains("Chị ơi"))
-        #expect(PromptBuilder.rewriteSystemPrompt.contains("anh/chị/em"))
+        // v0.11.1 — pronoun rule promoted to an ABSOLUTE top-level
+        // section. Pin the exact wording so a future prompt rewrite
+        // doesn't quietly drop the rule that prevents Gemini from
+        // swapping "em" with "anh/chị".
+        #expect(PromptBuilder.rewriteSystemPrompt.contains("ABSOLUTE rule — PRONOUNS"))
+        #expect(PromptBuilder.rewriteSystemPrompt.contains("\"em\" stays \"em\""))
+        #expect(PromptBuilder.rewriteSystemPrompt.contains("\"tôi\" stays \"tôi\""))
     }
 
     @Test("Rewrite jobs stay near-deterministic")
