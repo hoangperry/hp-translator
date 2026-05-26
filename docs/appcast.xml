@@ -8,6 +8,27 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.10.4</title>
+      <pubDate>Wed, 27 May 2026 01:52:34 +0700</pubDate>
+      <description><![CDATA[
+        <h2>Permission UX cleanup</h2>
+        <p>Drops Input Monitoring from the onboarding and Settings surface entirely — the app never actually needed it, and the Request button could not recover after the first denial (macOS silently suppresses the prompt forever once dismissed).</p>
+        <ul>
+          <li><strong>Input Monitoring removed</strong> — Carbon <code>RegisterEventHotKey</code> (global hotkeys) and <code>CGEvent</code> posting (paste) both run on Accessibility alone. Asking for a permission we never call into was pure friction.</li>
+          <li><strong>Auto-open Settings fallback</strong> — when the Accessibility request prompt is silently suppressed by macOS (after a prior denial), the app now opens System Settings → Accessibility automatically after a 1.5-second grace period. No more "I clicked Request and nothing happened" dead end.</li>
+        </ul>
+        <p>UserDefaults + Keychain layout unchanged from v0.10.3. 390 tests pass.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.10.4">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.10.4/Contextual-Mac-Translator-v0.10.4-macos-arm64.zip"
+        sparkle:version="33"
+        sparkle:shortVersionString="0.10.4"
+        sparkle:edSignature="8iC8WJpgvdsdavYwxa0gOBke5OSjoSfIoLLyIZZuL1S2sopW8DYLXy6q8rvdlE0Lkn7kBCGqCQaDoB4cViL/Bg==" length="2116909"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.10.3</title>
       <pubDate>Tue, 26 May 2026 23:58:00 +0700</pubDate>
       <description><![CDATA[
