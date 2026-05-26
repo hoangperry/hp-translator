@@ -11,6 +11,7 @@ final class PermissionManager {
     private let accessibilityProbe: @MainActor () -> Bool
     private let requestAccessibilityAction: @MainActor () -> Void
     private let openAccessibilitySettings: @MainActor () -> Void
+    private let autoOpenGracePeriodMilliseconds: UInt64
 
     /// `settings` is optional so tests can construct a probe-only
     /// instance without spinning up a UserDefaults / Keychain pair.
@@ -36,12 +37,14 @@ final class PermissionManager {
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
                 NSWorkspace.shared.open(url)
             }
-        }
+        },
+        autoOpenGracePeriodMilliseconds: UInt64 = 1500
     ) {
         self.settings = settings
         self.accessibilityProbe = accessibilityProbe
         self.requestAccessibilityAction = requestAccessibilityAction
         self.openAccessibilitySettings = openAccessibilitySettings
+        self.autoOpenGracePeriodMilliseconds = autoOpenGracePeriodMilliseconds
         self.accessibilityGranted = accessibilityProbe()
         // Init does NOT sync the persisted record — AppDelegate must
         // read SettingsStore.lastKnownAccessibilityGranted FIRST so it
@@ -65,23 +68,36 @@ final class PermissionManager {
         refresh()
         guard !accessibilityGranted else { return }
         requestAccessibilityAction()
-        Task { @MainActor in
-            // 1.5s — long enough that a user who genuinely just clicked
-            // "Allow" on the system prompt will have already triggered
-            // the TCC database update by the time we re-check; short
-            // enough that the auto-open fallback feels responsive when
-            // macOS suppressed the prompt outright.
-            try? await Task.sleep(for: .milliseconds(1500))
-            refresh()
-            if !accessibilityGranted {
-                openAccessibilitySettings()
-            }
+        let grace = autoOpenGracePeriodMilliseconds
+        Task { @MainActor [weak self] in
+            // 1.5s default — long enough that a user who genuinely just
+            // clicked "Allow" on the system prompt will have already
+            // triggered the TCC database update by the time we re-check;
+            // short enough that the auto-open fallback feels responsive
+            // when macOS suppressed the prompt outright.
+            try? await Task.sleep(for: .milliseconds(grace))
+            self?.checkAutoOpenSettings()
         }
         // Defense in depth: a separate 2s tick re-reads the live grant
         // so the UI flips to "Granted" promptly once the user toggles
         // the checkbox in System Settings (the OnboardingView polling
         // loop also covers this; this is the non-window code path).
         refreshLater()
+    }
+
+    /// v0.10.6 — split out from the grace-task closure so tests can
+    /// exercise the auto-open decision synchronously without leaning on
+    /// the cooperative scheduler. Same body, just callable directly.
+    /// Internal so the tests in the same module can reach it; not a
+    /// public API surface.
+    @discardableResult
+    func checkAutoOpenSettings() -> Bool {
+        refresh()
+        if !accessibilityGranted {
+            openAccessibilitySettings()
+            return true
+        }
+        return false
     }
 
     /// Compare the live grant against the last value we persisted.

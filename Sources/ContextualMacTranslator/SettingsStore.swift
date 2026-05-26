@@ -611,11 +611,23 @@ final class SettingsStore {
         return nil
     }
 
-    /// `true` when the active provider can perform a tone rewrite. Only
-    /// direct-API LLM providers qualify — backend modes are deferred, and
-    /// DeepL / Google Translate / LibreTranslate cannot rewrite at all.
+    /// `true` when the active translation source can perform a tone
+    /// rewrite. Direct-API LLM providers (Gemini / OpenAI / Ollama)
+    /// qualify when they declare `supportsRewrite`. v0.10.6 also enables
+    /// rewrite for the backend modes (SaaS + self-hosted FastAPI): the
+    /// SaaS Supabase Edge Function now switches to the rewrite system
+    /// prompt when the request carries `direction: "rewrite"`. Older
+    /// self-hosted FastAPI deployments will silently fall through to
+    /// the regular translate path (still produces a Vietnamese-to-
+    /// Vietnamese "translation" output, which is the closest thing to
+    /// a rewrite that the old server can produce — acceptable failure
+    /// mode).
     var rewriteAvailable: Bool {
-        guard translationSource == .directAPI else { return false }
-        return directProvider.supportsRewrite
+        switch translationSource {
+        case .customBackend, .firstPartyBackend:
+            return true
+        case .directAPI:
+            return directProvider.supportsRewrite
+        }
     }
 }

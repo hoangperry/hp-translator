@@ -139,53 +139,42 @@ struct PermissionManagerTests {
         #expect(requestCount.value == 0)
     }
 
-    @Test("v0.10.4: auto-opens Settings if grant doesn't arrive within the grace period")
-    func autoOpensSettingsWhenPromptSuppressed() async {
-        // Simulate the "user previously denied, macOS now silently
-        // suppresses CGRequest…" scenario: probe stays false even after
-        // the request action fires. PermissionManager must detect the
-        // missing grant within the grace window and call the
-        // openAccessibilitySettings closure so the user has a path out.
+    @Test("v0.10.4: checkAutoOpenSettings fires the open closure when grant is missing")
+    func checkAutoOpenFiresWhenUngranted() {
+        // Drive the post-grace decision directly. The original async test
+        // raced the test-suite scheduler in full-suite runs; the production
+        // code still schedules a grace Task, but tests now exercise the
+        // synchronous decision body without leaning on cooperative timing.
         let settings = makeSettings("auto-open").store
         let openCount = Box(0)
         let pm = PermissionManager(
             settings: settings,
             accessibilityProbe: { false },
-            requestAccessibilityAction: { /* macOS swallowed it */ },
+            requestAccessibilityAction: { },
             openAccessibilitySettings: { openCount.value += 1 }
         )
 
-        pm.requestAccessibilityIfNeeded()
-        // Grace period is 1.5s; wait noticeably longer to absorb test-host
-        // scheduler jitter — at 2s the inner Task's wake-up was racing
-        // the assertion read, producing intermittent zero-count failures.
-        try? await Task.sleep(for: .seconds(3))
+        let didOpen = pm.checkAutoOpenSettings()
+        #expect(didOpen == true)
         #expect(openCount.value == 1)
     }
 
-    @Test("v0.10.4: does NOT auto-open Settings if grant arrives during the grace period")
-    func skipsAutoOpenWhenGrantArrives() async {
-        // The other half of the contract: when the user actually clicks
-        // "Allow" on the system prompt during the grace window, the
-        // probe flips to true and the auto-open Settings step is
-        // skipped — no double-trigger noise.
+    @Test("v0.10.4: checkAutoOpenSettings SKIPS the open when the grant has arrived")
+    func checkAutoOpenSkipsWhenGranted() {
+        // The other half of the contract: if by the time the grace window
+        // expires the user has already clicked "Allow", the probe reads
+        // true and the auto-open Settings step does NOT fire.
         let settings = makeSettings("skip-auto-open").store
         let openCount = Box(0)
-        let liveGranted = Box(false)
         let pm = PermissionManager(
             settings: settings,
-            accessibilityProbe: { liveGranted.value },
-            requestAccessibilityAction: { /* prompt shown */ },
+            accessibilityProbe: { true },
+            requestAccessibilityAction: { },
             openAccessibilitySettings: { openCount.value += 1 }
         )
 
-        pm.requestAccessibilityIfNeeded()
-        // Simulate the user clicking Allow before the grace window
-        // expires.
-        try? await Task.sleep(for: .milliseconds(500))
-        liveGranted.value = true
-        // Same 3s margin as the sibling test to ride out scheduler jitter.
-        try? await Task.sleep(for: .seconds(3))
+        let didOpen = pm.checkAutoOpenSettings()
+        #expect(didOpen == false)
         #expect(openCount.value == 0)
     }
 }

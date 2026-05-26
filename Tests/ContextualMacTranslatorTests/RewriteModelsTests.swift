@@ -118,10 +118,11 @@ struct RewriteSettingsTests {
         #expect(reloaded.rewriteBindings.first?.tone == .polite)
     }
 
-    @Test("rewriteAvailable is true for direct LLM providers, false otherwise")
+    @Test("rewriteAvailable: direct API gated on provider, backend modes always true (v0.10.6)")
     func rewriteAvailability() {
         let store = SettingsStore(defaults: makeDefaults("rewrite-avail"), keychain: makeKeychain())
 
+        // Direct API: gated on the active provider's supportsRewrite flag.
         store.translationSource = .directAPI
         store.directProvider = .gemini
         #expect(store.rewriteAvailable == true)
@@ -129,9 +130,18 @@ struct RewriteSettingsTests {
         store.directProvider = .deepl
         #expect(store.rewriteAvailable == false)
 
+        // v0.10.6 — backend modes now support rewrite. The SaaS Supabase
+        // Edge Function switches to a rewrite system prompt when the
+        // request carries `direction: "rewrite"`; older self-hosted
+        // FastAPI deployments will fall through to translate mode (an
+        // acceptable degraded result, not a crash).
         store.translationSource = .customBackend
         store.directProvider = .gemini
-        #expect(store.rewriteAvailable == false)
+        #expect(store.rewriteAvailable == true)
+
+        store.translationSource = .firstPartyBackend
+        store.directProvider = .deepl   // irrelevant in backend mode
+        #expect(store.rewriteAvailable == true)
     }
 
     @Test("bindingLabel detects a hotkey used by a rewrite binding")
