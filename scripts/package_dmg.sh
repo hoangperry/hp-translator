@@ -3,11 +3,13 @@ set -euo pipefail
 
 CONFIG="${1:-release}"
 APP_NAME="Contextual Mac Translator"
-APP_VERSION="0.10.0"
-DMG_NAME="Contextual-Mac-Translator-v${APP_VERSION}-macos-arm64.dmg"
-ZIP_NAME="Contextual-Mac-Translator-v${APP_VERSION}-macos-arm64.zip"
 VOLUME_NAME="Contextual Mac Translator"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# v0.10.3 — APP_VERSION used to be hardcoded here and drifted on every
+# release (v0.10.2 shipped a DMG named "v0.10.0" because someone forgot
+# to bump). The real source of truth is scripts/package_app.sh, which
+# bakes CFBundleShortVersionString into the Info.plist template. We read
+# it back from the built Info.plist below, AFTER package_app.sh runs.
 
 # Optional notarization. Export NOTARY_PROFILE to enable:
 #   export NOTARY_PROFILE="translator-notary"
@@ -24,6 +26,15 @@ SPARKLE_SIGN_UPDATE="${SPARKLE_SIGN_UPDATE:-$HOME/.local/share/sparkle-2.9.2/bin
 "$ROOT_DIR/scripts/package_app.sh" "$CONFIG"
 
 APP_DIR="$ROOT_DIR/.build/app/$APP_NAME.app"
+
+# Read the version that package_app.sh just baked into the bundle so the
+# DMG + ZIP filenames stay locked to the actual artifact. Single source
+# of truth — change CFBundleShortVersionString in one place
+# (package_app.sh) and every downstream filename follows.
+APP_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_DIR/Contents/Info.plist")"
+DMG_NAME="Contextual-Mac-Translator-v${APP_VERSION}-macos-arm64.dmg"
+ZIP_NAME="Contextual-Mac-Translator-v${APP_VERSION}-macos-arm64.zip"
+
 DMG_DIR="$ROOT_DIR/.build/dmg"
 STAGING_DIR="$DMG_DIR/staging"
 DMG_PATH="$DMG_DIR/$DMG_NAME"
@@ -33,7 +44,12 @@ rm -rf "$DMG_DIR"
 mkdir -p "$STAGING_DIR"
 
 export COPYFILE_DISABLE=1
-ditto --norsrc "$APP_DIR" "$STAGING_DIR/$APP_NAME.app"
+# v0.10.3 — --norsrc + --noextattr + --noacl prevents AppleDouble (._*)
+# metadata from leaking into the staged .app. The HFS+ volume inside
+# the DMG could absorb them natively, but the same .app gets re-zipped
+# below for Sparkle, and ZIP packaging would re-inject ._* via xattr
+# preservation. See applesdouble-files-break-gatekeeper memory.
+ditto --norsrc --noextattr --noacl "$APP_DIR" "$STAGING_DIR/$APP_NAME.app"
 ln -s /Applications "$STAGING_DIR/Applications"
 
 hdiutil create \
@@ -48,10 +64,13 @@ hdiutil verify "$DMG_PATH" >/dev/null
 # Sparkle prefers .zip over .dmg for updates — extracts faster and the
 # Updater.app can swap a .app bundle in place without needing a mounted
 # volume. We zip directly from the .app/, NOT from the DMG staging.
+# v0.10.3 — --norsrc + --noextattr + --noacl prevents the AppleDouble
+# (._*) bug that broke v0.10.0..v0.10.2 Gatekeeper acceptance.
 echo "Creating Sparkle update zip..."
 (
   cd "$(dirname "$APP_DIR")"
-  /usr/bin/ditto -c -k --keepParent "$APP_NAME.app" "$ZIP_PATH"
+  /usr/bin/ditto -c -k --keepParent --norsrc --noextattr --noacl \
+    "$APP_NAME.app" "$ZIP_PATH"
 )
 
 if [ -n "$NOTARY_PROFILE" ]; then
@@ -75,7 +94,8 @@ if [ -n "$NOTARY_PROFILE" ]; then
   (
     cd "$(dirname "$APP_DIR")"
     rm -f "$ZIP_PATH"
-    /usr/bin/ditto -c -k --keepParent "$APP_NAME.app" "$ZIP_PATH"
+    /usr/bin/ditto -c -k --keepParent --norsrc --noextattr --noacl \
+      "$APP_NAME.app" "$ZIP_PATH"
   )
   echo "Notarization complete and stapled (DMG + zip)."
 fi
