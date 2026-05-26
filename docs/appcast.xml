@@ -8,6 +8,27 @@
     <description>Auto-update feed for Contextual Mac Translator. Sparkle 2 + EdDSA signed.</description>
     <language>en</language>
     <item>
+      <title>v0.10.1</title>
+      <pubDate>Tue, 26 May 2026 17:46:00 +0700</pubDate>
+      <description><![CDATA[
+        <h2>SaaS backend hotfix</h2>
+        <p>v0.10.0 shipped just as the production SaaS Edge Function went live, and the two wire formats turned out to be incompatible. Translates against <code>app.contextmt.dev</code> failed immediately with HTTP 400, then HTTP 200 but "missing translation" once that cleared. v0.10.1 makes both work.</p>
+        <ul>
+          <li><strong>Dual wire format</strong> — every request body now carries each routing field under both camelCase (legacy self-hosted FastAPI) and snake_case (SaaS Supabase Edge Function). One payload, both backends.</li>
+          <li><strong>Streaming graceful fallback</strong> — the streaming flow now sniffs <code>Content-Type</code>; if the backend returns one-shot JSON instead of <code>text/event-stream</code> (Supabase does this), the body is decoded as a single translation and emitted as one <code>done</code> update. Self-hosted SSE keeps real streaming.</li>
+        </ul>
+        <p>UserDefaults + Keychain layout byte-identical to v0.10.0 — risk-free upgrade.</p>
+        <p>See <a href="https://github.com/hoangperry/hp-translator/releases/tag/v0.10.1">release notes</a> on GitHub.</p>
+      ]]></description>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure
+        url="https://github.com/hoangperry/hp-translator/releases/download/v0.10.1/Contextual-Mac-Translator-v0.10.1-macos-arm64.zip"
+        sparkle:version="30"
+        sparkle:shortVersionString="0.10.1"
+        sparkle:edSignature="j4d3WdJXXMO8wDLrcNNGSTHEbGKpO1mkrl2PV43sJnGevBDz1+D7WvZUUxdcRtcH8yygM0hP3L57N2gFU1IqBw==" length="2182381"
+        type="application/octet-stream" />
+    </item>
+    <item>
       <title>v0.10.0</title>
       <pubDate>Mon, 25 May 2026 23:27:07 +0700</pubDate>
       <description><![CDATA[
