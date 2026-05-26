@@ -14,6 +14,53 @@ App đang ở giai đoạn alpha; mỗi release là pre-release trên GitHub.
   `app.lookerlab.translator` → `dev.hoangtruong.translator`. App sẽ hiện
   banner trên first launch yêu cầu nhập lại credentials.
 
+## [0.11.1] — 2026-05-27
+
+**Rewrite pronoun-preservation hotfix.** User-reported bug: a draft
+addressed with "em" was coming back as "anh/chị" (or vice versa) after
+a rewrite, inverting the entire social relationship between speaker
+and addressee. In Vietnamese this is a major correctness failure —
+pronouns ARE the relationship, not decoration around it.
+
+Root cause: the pronoun-preservation rule was a single buried line in
+a bullet list AND one of the few-shot examples in the prompt itself
+silently switched "tôi" to "em", actively teaching the model the
+opposite of what the rule said. The Supabase server prompt didn't
+mention Vietnamese pronouns at all.
+
+### Fixed — Mac app `PromptBuilder.rewriteSystemPrompt`
+
+- Pronoun-preservation rule promoted from a bullet to an **ABSOLUTE**
+  top-level section with explicit per-pronoun guarantees ("em" stays
+  "em", "tôi" stays "tôi", "mình" stays "mình", every addressing
+  pronoun preserved verbatim).
+- Few-shot example #2 fixed: input "tôi" → output now keeps "tôi"
+  (was wrongly outputting "em").
+- Few-shot example #3 fixed: input "tôi" → output now keeps "tôi"
+  (was wrongly outputting "em").
+- New few-shot example #4 demonstrates "em → anh" pronoun fidelity
+  across a friendly tone shift.
+- Other-language formality markers ("tu"/"vous", "tú"/"usted",
+  "你"/"您", etc.) added to the rule so the fix isn't VN-only.
+
+### Fixed — Supabase `REWRITE_SYSTEM_PROMPT`
+
+- Server-side rewrite prompt was much thinner than the Mac side and
+  had no pronoun rule whatsoever. Now mirrors PromptBuilder's
+  rewriteSystemPrompt verbatim so SaaS users get the same
+  pronoun-preserving quality as direct-API users.
+- Already deployed via `supabase functions deploy translate`.
+
+### Tests
+
+- `rewriteSystemPromptHasFewShot` updated to pin the new ABSOLUTE
+  pronoun rule string + per-pronoun guarantees so a future prompt
+  refactor cannot quietly drop the protection. 400 tests pass.
+
+### Risk-free upgrade
+
+UserDefaults + Keychain layout unchanged from v0.11.0.
+
 ## [0.11.0] — 2026-05-27
 
 **Prompt Engineer mode.** Type a minimal Vietnamese keyword sketch of
